@@ -97,7 +97,7 @@ async function runSetup() {
         [Permission.read(Role.any()), Permission.create(Role.users())],
         false, // fileSecurity
         true,  // enabled
-        50 * 1024 * 1024, // 50MB max file size
+        50000000, // 50,000,000 bytes (max allowed by Appwrite Cloud)
         ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'py', 'txt', 'csv']
       );
       console.log(`✅ Created Storage Bucket: ${bucketId}`);
