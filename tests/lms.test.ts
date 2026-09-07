@@ -189,6 +189,9 @@ describe('Python Class LMS - Core Security & Functionality Tests', () => {
       const auth = await storageService.loginStudent('26018281', '8888');
       if (auth.role !== 'student') throw new Error('Expected student');
       expect(auth.student.mustChangePin).toBe(false);
+
+      // Revert STU-C1-002 PIN back to default '1234'
+      await storageService.changeStudentPin('STU-C1-002', '8888', '1234');
     });
   });
 
@@ -394,6 +397,9 @@ describe('Python Class LMS - Core Security & Functionality Tests', () => {
       if (teacherAuth.role === 'teacher') {
         expect(teacherAuth.teacher.email).toBe('teacher@college.edu');
       }
+
+      // Revert password back to default for clean idempotent test runs
+      await storageService.changeTeacherPassword('NewFacultySecret@2025', 'Teacher@2024');
     });
   });
 

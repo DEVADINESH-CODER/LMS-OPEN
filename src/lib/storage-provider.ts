@@ -30,6 +30,18 @@ import {
   INITIAL_NOTIFICATIONS 
 } from '../data/initialData';
 import { hashPin, verifyPin, generateSalt, createSessionToken, checkRateLimit } from './security';
+import {
+  fetchTeacherAuthFromServer,
+  saveTeacherAuthToServer,
+  fetchStudentFromServer,
+  saveStudentPinToServer,
+  fetchAnnouncementsFromServer,
+  saveAnnouncementToServer,
+  deleteAnnouncementFromServer,
+  fetchLessonsFromServer,
+  saveLessonToServer,
+  updateStudentStatusOnServer
+} from './appwrite';
 
 const STORAGE_KEYS = {
   CLASSES: 'lms_classes_v2',
@@ -141,6 +153,43 @@ class StorageService {
       this.teacherPasswordHash = teacherAuth.hash;
       this.teacherPasswordSalt = teacherAuth.salt;
     }
+
+    // Trigger initial background sync with Appwrite Cloud
+    this.syncWithServer().catch(() => {});
+  }
+
+  public async syncWithServer(): Promise<void> {
+    try {
+      // 1. Sync teacher auth from Appwrite Cloud
+      const serverAuth = await fetchTeacherAuthFromServer();
+      if (serverAuth) {
+        this.teacherPasswordHash = serverAuth.passwordHash;
+        this.teacherPasswordSalt = serverAuth.salt;
+        setLocal(STORAGE_KEYS.TEACHER_AUTH, { hash: serverAuth.passwordHash, salt: serverAuth.salt });
+      }
+
+      // 2. Sync announcements from Appwrite Cloud
+      const serverAnnouncements = await fetchAnnouncementsFromServer();
+      if (serverAnnouncements && serverAnnouncements.length > 0) {
+        this.announcements = serverAnnouncements;
+        setLocal(STORAGE_KEYS.ANNOUNCEMENTS, this.announcements);
+      }
+
+      // 3. Sync lessons from Appwrite Cloud
+      const serverLessons = await fetchLessonsFromServer();
+      if (serverLessons && serverLessons.length > 0) {
+        const lessonMap = new Map(this.lessons.map(l => [l.id, l]));
+        serverLessons.forEach(sl => {
+          if (sl && sl.id) {
+            lessonMap.set(sl.id, sl);
+          }
+        });
+        this.lessons = Array.from(lessonMap.values());
+        setLocal(STORAGE_KEYS.LESSONS, this.lessons);
+      }
+    } catch {
+      // Fallback to local storage silently
+    }
   }
 
   private save() {
@@ -177,6 +226,20 @@ class StorageService {
       throw new Error('This student account has been deactivated. Please contact your instructor.');
     }
 
+    // Always fetch latest PIN & credentials from Appwrite Cloud first
+    try {
+      const serverStudent = await fetchStudentFromServer(student.id);
+      if (serverStudent) {
+        student.pinHash = serverStudent.pinHash;
+        student.salt = serverStudent.salt;
+        student.mustChangePin = serverStudent.mustChangePin;
+        student.isActive = serverStudent.isActive;
+        this.save();
+      }
+    } catch {
+      // Offline fallback: continue with local cache
+    }
+
     const isPinValid = await verifyPin(pin, student.pinHash, student.salt);
     if (!isPinValid) {
       throw new Error('Invalid Register Number or PIN.');
@@ -206,6 +269,18 @@ class StorageService {
     const rateCheck = checkRateLimit(`login_teacher_${cleanEmail}`, 5, 60000);
     if (!rateCheck.allowed) {
       throw new Error('Too many login attempts. Please wait 1 minute.');
+    }
+
+    // Always fetch latest teacher credentials from Appwrite Cloud
+    try {
+      const serverAuth = await fetchTeacherAuthFromServer();
+      if (serverAuth) {
+        this.teacherPasswordHash = serverAuth.passwordHash;
+        this.teacherPasswordSalt = serverAuth.salt;
+        setLocal(STORAGE_KEYS.TEACHER_AUTH, { hash: serverAuth.passwordHash, salt: serverAuth.salt });
+      }
+    } catch {
+      // Offline fallback: continue with local cache
     }
 
     if (cleanEmail === INITIAL_TEACHER.email.toLowerCase()) {
@@ -238,6 +313,16 @@ class StorageService {
   }
 
   public async changeTeacherPassword(currentPassword: string, newPassword: string): Promise<void> {
+    // Check latest state from server first
+    try {
+      const serverAuth = await fetchTeacherAuthFromServer();
+      if (serverAuth) {
+        this.teacherPasswordHash = serverAuth.passwordHash;
+        this.teacherPasswordSalt = serverAuth.salt;
+        setLocal(STORAGE_KEYS.TEACHER_AUTH, { hash: serverAuth.passwordHash, salt: serverAuth.salt });
+      }
+    } catch {}
+
     let isCurrentValid = false;
     if (this.teacherPasswordHash && this.teacherPasswordSalt) {
       isCurrentValid = await verifyPin(currentPassword, this.teacherPasswordHash, this.teacherPasswordSalt);
@@ -260,11 +345,24 @@ class StorageService {
 
     setLocal(STORAGE_KEYS.TEACHER_AUTH, { hash, salt });
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'TEACHER_PASSWORD_CHANGED', 'Faculty password was updated successfully');
+
+    // Immediately push to Appwrite Cloud
+    await saveTeacherAuthToServer(hash, salt);
   }
 
   public async changeStudentPin(studentId: string, currentPin: string, newPin: string): Promise<void> {
     const student = this.students.find(s => s.id === studentId);
     if (!student) throw new Error('Student not found.');
+
+    // Fetch latest PIN from server first to verify
+    try {
+      const serverStudent = await fetchStudentFromServer(student.id);
+      if (serverStudent) {
+        student.pinHash = serverStudent.pinHash;
+        student.salt = serverStudent.salt;
+        student.mustChangePin = serverStudent.mustChangePin;
+      }
+    } catch {}
 
     const isValid = await verifyPin(currentPin, student.pinHash, student.salt);
     if (!isValid) throw new Error('Current PIN is incorrect.');
@@ -274,13 +372,17 @@ class StorageService {
     }
 
     const newSalt = generateSalt(16);
-    student.pinHash = await hashPin(newPin, newSalt);
+    const newHash = await hashPin(newPin, newSalt);
+    student.pinHash = newHash;
     student.salt = newSalt;
     student.mustChangePin = false;
     student.updatedAt = new Date().toISOString();
     this.save();
 
     this.logAudit(student.id, 'student', 'PIN_CHANGED', `Student ${student.name} updated their private PIN`);
+
+    // Immediately push to Appwrite Cloud
+    await saveStudentPinToServer(student.id, newHash, newSalt);
   }
 
   // --- CLASSES ---
@@ -343,6 +445,7 @@ class StorageService {
         this.updateClassActivePeriod(lessonData.classId, lessonData.periodNumber);
         this.save();
         this.createClassNotification(lessonData.classId, `Period ${lessonData.periodNumber} Published`, `Lesson on "${lessonData.topic}" is now live on your Today page.`, 'lesson');
+        saveLessonToServer(this.lessons[index]).catch(() => {});
         return this.lessons[index];
       }
     }
@@ -359,6 +462,7 @@ class StorageService {
     this.updateClassActivePeriod(lessonData.classId, lessonData.periodNumber);
     this.save();
     this.createClassNotification(lessonData.classId, `Period ${lessonData.periodNumber} Published`, `Lesson on "${lessonData.topic}" is now live on your Today page.`, 'lesson');
+    saveLessonToServer(newLesson).catch(() => {});
     return newLesson;
   }
 
@@ -720,6 +824,10 @@ class StorageService {
 
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'PIN_RESET', `Reset PIN for student ${student.registerNumber} (${student.name})`);
+
+    // Sync to Appwrite Cloud
+    await saveStudentPinToServer(student.id, student.pinHash, student.salt, true);
+
     return { tempPin };
   }
 
@@ -730,6 +838,10 @@ class StorageService {
     student.isActive = !student.isActive;
     student.updatedAt = new Date().toISOString();
     this.save();
+
+    // Sync to Appwrite Cloud
+    updateStudentStatusOnServer(student.id, student.isActive).catch(() => {});
+
     return student;
   }
 
@@ -825,6 +937,9 @@ class StorageService {
       'announcement'
     );
 
+    // Sync to Appwrite Cloud
+    saveAnnouncementToServer(newAnn).catch(() => {});
+
     return newAnn;
   }
 
@@ -841,6 +956,10 @@ class StorageService {
     };
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'ANNOUNCEMENT_UPDATED', `Updated announcement "${this.announcements[index].title}"`);
+    
+    // Sync to Appwrite Cloud
+    saveAnnouncementToServer(this.announcements[index]).catch(() => {});
+    
     return this.announcements[index];
   }
 
@@ -852,6 +971,9 @@ class StorageService {
     this.announcements.splice(index, 1);
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'ANNOUNCEMENT_DELETED', `Deleted announcement "${deleted.title}" (ID: ${announcementId})`);
+
+    // Sync to Appwrite Cloud
+    deleteAnnouncementFromServer(announcementId).catch(() => {});
   }
 
   // --- NOTIFICATIONS ---
