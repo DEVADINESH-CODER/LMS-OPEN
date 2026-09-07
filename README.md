@@ -195,3 +195,5 @@ Tests verify:
 
 ## 📄 License
 Educational Private Classroom License. Built for collegiate computer science instruction.
+#   L M S - O P E N  
+ 
