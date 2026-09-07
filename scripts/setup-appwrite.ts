@@ -157,7 +157,14 @@ async function runSetup() {
     console.log('You can now deploy the frontend to Cloudflare Pages.');
 
   } catch (error: any) {
-    console.error('❌ Provisioning Error:', error.message || error);
+    console.error('\n❌ Provisioning Error:', error.message || error);
+    if (error.message && error.message.includes('missing scopes')) {
+      console.log('\n💡 Fix: In Appwrite Cloud Console (cloud.appwrite.io):');
+      console.log('   1. Go to your Project -> Settings -> API Keys.');
+      console.log('   2. Click your API Key to edit it.');
+      console.log('   3. Under Scopes, select "Select All" (or check Collections, Documents, Databases, Storage/Buckets).');
+      console.log('   4. Click Update/Save, then re-run this command.');
+    }
   }
 }
 
