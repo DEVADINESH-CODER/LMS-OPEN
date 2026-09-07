@@ -22,7 +22,7 @@ const bucketId = process.env.APPWRITE_STORAGE_BUCKET_ID || 'course_materials';
 
 async function runSetup() {
   console.log('🚀 Starting Appwrite Cloud Provisioning for Python Class LMS...');
-  
+
   if (!projectId || !apiKey) {
     console.error('❌ Missing APPWRITE_PROJECT_ID or APPWRITE_API_KEY environment variables.');
     console.log('Please set them in your .env file or pass them via CLI.');
@@ -71,9 +71,9 @@ async function runSetup() {
         console.log(`  ✓ Collection '${col.id}' exists`);
       } catch {
         await databases.createCollection(
-          databaseId, 
-          col.id, 
-          col.name, 
+          databaseId,
+          col.id,
+          col.name,
           [
             Permission.read(Role.any()),
             Permission.create(Role.users()),
@@ -149,7 +149,7 @@ async function runSetup() {
             cls
           );
           console.log(`  + Seeded Class ${cls.id}`);
-        } catch {}
+        } catch { }
       }
     }
 
