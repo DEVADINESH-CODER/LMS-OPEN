@@ -9,6 +9,7 @@ import { ChangePinModal } from './components/auth/ChangePinModal';
 
 // Student views
 import { StudentTodayView } from './components/student/StudentTodayView';
+import { StudentLivePollView } from './components/student/StudentLivePollView';
 import { StudentRevisionView } from './components/student/StudentRevisionView';
 import { StudentPracticeView } from './components/student/StudentPracticeView';
 import { StudentSyllabusView } from './components/student/StudentSyllabusView';
@@ -147,7 +148,8 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
           {user.role === 'student' ? (
             <>
-              {currentTab === 'today' && <StudentTodayView />}
+              {currentTab === 'today' && <StudentTodayView onNavigate={(tab) => handleNavigateTab(tab)} />}
+              {currentTab === 'live-poll' && <StudentLivePollView />}
               {currentTab === 'revision' && <StudentRevisionView />}
               {currentTab === 'practice' && <StudentPracticeView />}
               {currentTab === 'group-chat' && <ClassGroupChat />}

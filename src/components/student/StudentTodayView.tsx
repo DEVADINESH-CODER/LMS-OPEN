@@ -21,47 +21,96 @@ import {
   ChevronRight, 
   ListChecks, 
   Target, 
-  FileCheck 
+  FileCheck,
+  BarChart3,
+  Flame,
+  ArrowRight
 } from 'lucide-react';
 import { subscribeToChannel } from '../../lib/appwrite';
+import { LivePoll } from '../../types';
 
-export const StudentTodayView: React.FC = () => {
+interface StudentTodayViewProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const StudentTodayView: React.FC<StudentTodayViewProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   if (!user || user.role !== 'student') return null;
 
   const studentClass = user.student.classId;
   const [todayLesson, setTodayLesson] = useState<LessonContent | null>(() => storageService.getTodayLessonForStudent(studentClass));
+  const [activePoll, setActivePoll] = useState<LivePoll | null>(() => storageService.getLivePoll(studentClass));
 
   useEffect(() => {
     const syncAndLoad = async () => {
       await storageService.syncLessons();
       setTodayLesson(storageService.getTodayLessonForStudent(studentClass));
+      await storageService.syncLivePoll();
+      setActivePoll(storageService.getLivePoll(studentClass));
     };
 
     syncAndLoad();
 
-    const unsubscribe = subscribeToChannel(
+    const unsubLessons = subscribeToChannel(
       'databases.python_class_lms.collections.lessons.documents',
       () => {
         syncAndLoad();
       }
     );
 
+    const unsubPoll = subscribeToChannel(
+      'databases.python_class_lms.collections.live_poll.documents',
+      () => {
+        syncAndLoad();
+      }
+    );
+
     return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubLessons === 'function') unsubLessons();
+      if (typeof unsubPoll === 'function') unsubPoll();
     };
   }, [studentClass]);
 
   if (!todayLesson) {
     return (
-      <div className="p-8 text-center max-w-2xl mx-auto my-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950 flex items-center justify-center mx-auto text-sky-600 mb-4">
-          <Calendar className="w-8 h-8" />
+      <div className="max-w-4xl mx-auto space-y-6 pb-16 animate-fadeIn">
+        {/* Active Poll Prompt if running */}
+        {activePoll && (
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white shadow-xl flex flex-wrap items-center justify-between gap-4 animate-bounce">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                <Flame className="w-6 h-6 text-amber-300" />
+              </div>
+              <div>
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200">
+                  Live Classroom Poll in Progress!
+                </span>
+                <p className="font-extrabold text-sm sm:text-base">
+                  "{activePoll.question}"
+                </p>
+              </div>
+            </div>
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('live-poll')}
+                className="px-4 py-2 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-md hover:bg-emerald-50 flex items-center gap-1.5 transition"
+              >
+                <span>Answer Live Poll</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="p-8 text-center max-w-2xl mx-auto my-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950 flex items-center justify-center mx-auto text-sky-600 mb-4">
+            <Calendar className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Lesson Published Yet</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+            Your instructor has not yet published the latest lecture for class <span className="font-semibold text-sky-600">{studentClass}</span>. Check the Revision section to review past lectures or explore Practice problems!
+          </p>
         </div>
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Lesson Published Yet</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-          Your instructor has not yet published the latest lecture for class <span className="font-semibold text-sky-600">{studentClass}</span>. Check the Revision section to review past lectures or explore Practice problems!
-        </p>
       </div>
     );
   }
@@ -69,6 +118,34 @@ export const StudentTodayView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16 animate-fadeIn">
       
+      {/* Active Poll Prompt Banner */}
+      {activePoll && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white shadow-xl flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+              <Flame className="w-6 h-6 text-amber-300" />
+            </div>
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200">
+                Live In-Class Poll Ongoing
+              </span>
+              <p className="font-extrabold text-sm sm:text-base">
+                "{activePoll.question}"
+              </p>
+            </div>
+          </div>
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('live-poll')}
+              className="px-4 py-2 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-md hover:bg-emerald-50 flex items-center gap-1.5 transition"
+            >
+              <span>View & Vote</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top Banner Card: Today's Topic & Period Badge */}
       <div className="rounded-3xl bg-gradient-to-r from-sky-600 via-sky-700 to-indigo-800 text-white p-6 sm:p-8 shadow-xl shadow-sky-600/10 relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
