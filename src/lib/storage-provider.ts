@@ -107,20 +107,9 @@ class StorageService {
   private teacherPasswordSalt: string = '';
 
   constructor() {
-    // Proactively purge old v1/v2 dummy chats and test cache
+    // Migrate active class if needed
     if (typeof window !== 'undefined') {
       try {
-        Object.keys(localStorage).forEach(key => {
-          if (
-            key.includes('_v1') || 
-            key.includes('097') || 
-            key.includes('_msgs_v2') || 
-            key.includes('conversations_v2') ||
-            key.includes('notifications_v2')
-          ) {
-            localStorage.removeItem(key);
-          }
-        });
         if (localStorage.getItem('active_class_id') === 'C1-097') {
           localStorage.setItem('active_class_id', 'C1-112');
         }

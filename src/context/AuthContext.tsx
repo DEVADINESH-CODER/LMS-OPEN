@@ -14,51 +14,58 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'lms_auth_session_v1';
+const AUTH_STORAGE_KEY = 'lms_active_auth_session';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Synchronously initialize user from localStorage on initial page render
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsed: AuthUser = JSON.parse(stored);
+        if (parsed && (parsed.role === 'teacher' || parsed.role === 'student')) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fallback
+    }
+    return null;
+  });
 
-  // Restore session on mount
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Background hydration: verify active student status
   useEffect(() => {
-    const restoreSession = async () => {
+    const checkFreshStatus = async () => {
       try {
         const stored = localStorage.getItem(AUTH_STORAGE_KEY);
         if (stored) {
           const parsedUser: AuthUser = JSON.parse(stored);
-          if (parsedUser && parsedUser.role) {
-            // Verify student is still active if role is student
-            if (parsedUser.role === 'student' && parsedUser.student) {
-              const students = storageService.getStudents();
-              const freshStudent = students.find(s => s.id === parsedUser.student.id);
-              if (freshStudent) {
-                if (freshStudent.isActive) {
-                  setUser({
-                    ...parsedUser,
-                    student: freshStudent
-                  });
-                } else {
-                  localStorage.removeItem(AUTH_STORAGE_KEY);
-                  setUser(null);
-                }
+          if (parsedUser && parsedUser.role === 'student' && parsedUser.student) {
+            const students = storageService.getStudents();
+            const freshStudent = students.find(s => s.id === parsedUser.student.id);
+            if (freshStudent) {
+              if (!freshStudent.isActive) {
+                // Only log out if student was explicitly deactivated
+                setUser(null);
+                localStorage.removeItem(AUTH_STORAGE_KEY);
               } else {
-                // Keep the stored student session if local students list isn't hydrated yet
-                setUser(parsedUser);
+                setUser({
+                  ...parsedUser,
+                  student: freshStudent
+                });
               }
-            } else if (parsedUser.role === 'teacher' && parsedUser.teacher) {
-              setUser(parsedUser);
             }
           }
         }
       } catch (err) {
-        console.error('Session restoration failed:', err);
-      } finally {
-        setIsLoading(false);
+        console.error('Session hydration failed:', err);
       }
     };
 
-    restoreSession();
+    checkFreshStatus();
   }, []);
 
   const loginStudent = async (registerNumber: string, pin: string): Promise<AuthUser> => {
