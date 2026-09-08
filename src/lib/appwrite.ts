@@ -159,10 +159,11 @@ export async function saveAnnouncementToServer(ann: any): Promise<void> {
       createdAt: ann.createdAt
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync announcement to Appwrite:', e);
@@ -209,10 +210,11 @@ export async function saveLessonToServer(lesson: any): Promise<void> {
       publishedAt: lesson.publishedAt || new Date().toISOString()
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.LESSONS, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync lesson to Appwrite:', e);
@@ -268,10 +270,11 @@ export async function saveGroupMessageToServer(msg: any): Promise<void> {
       createdAt: msg.createdAt || new Date().toISOString()
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync group message to Appwrite:', e);
@@ -312,10 +315,11 @@ export async function savePrivateConversationToServer(conv: any): Promise<void> 
       lastMessageSnippet: (conv.lastMessageSnippet || '').slice(0, 255)
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync private conversation to Appwrite:', e);
@@ -356,10 +360,11 @@ export async function savePrivateMessageToServer(msg: any): Promise<void> {
       createdAt: msg.createdAt || new Date().toISOString()
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync private message to Appwrite:', e);
@@ -399,10 +404,11 @@ export async function saveClassProgressToServer(progress: any): Promise<void> {
       lastUpdated: progress.lastUpdated || new Date().toISOString()
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync class progress to Appwrite:', e);
@@ -444,10 +450,11 @@ export async function savePracticeQuestionToServer(q: any): Promise<void> {
       questionData: JSON.stringify(q)
     };
     try {
-      await databases.getDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId);
-      await databases.updateDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId, payload);
-    } catch {
       await databases.createDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId, payload);
+      } catch {}
     }
   } catch (e) {
     console.warn('Could not sync practice question to Appwrite:', e);
@@ -463,6 +470,7 @@ export async function deletePracticeQuestionFromServer(questionId: string): Prom
     console.warn('Could not delete practice question from Appwrite:', e);
   }
 }
+
 
 
 
