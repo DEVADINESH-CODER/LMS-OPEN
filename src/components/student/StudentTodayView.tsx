@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { storageService } from '../../lib/storage-provider';
+import { LessonContent } from '../../types';
 import { CodeRunner } from '../common/CodeRunner';
 import { PredictRunExplain } from '../common/PredictRunExplain';
 import { DebugCard } from '../common/DebugCard';
@@ -19,16 +20,37 @@ import {
   FileText, 
   ChevronRight, 
   ListChecks, 
-  Target,
-  FileCheck
+  Target, 
+  FileCheck 
 } from 'lucide-react';
+import { subscribeToChannel } from '../../lib/appwrite';
 
 export const StudentTodayView: React.FC = () => {
   const { user } = useAuth();
   if (!user || user.role !== 'student') return null;
 
   const studentClass = user.student.classId;
-  const todayLesson = storageService.getTodayLessonForStudent(studentClass);
+  const [todayLesson, setTodayLesson] = useState<LessonContent | null>(() => storageService.getTodayLessonForStudent(studentClass));
+
+  useEffect(() => {
+    const syncAndLoad = async () => {
+      await storageService.syncLessons();
+      setTodayLesson(storageService.getTodayLessonForStudent(studentClass));
+    };
+
+    syncAndLoad();
+
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.lessons.documents',
+      () => {
+        syncAndLoad();
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [studentClass]);
 
   if (!todayLesson) {
     return (

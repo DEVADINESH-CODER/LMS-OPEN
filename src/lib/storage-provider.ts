@@ -59,19 +59,19 @@ import {
 } from './appwrite';
 
 const STORAGE_KEYS = {
-  CLASSES: 'lms_classes_v2',
-  STUDENTS: 'lms_students_v2',
-  LESSONS: 'lms_lessons_v2',
-  PROGRESS: 'lms_progress_v2',
-  PRACTICE: 'lms_practice_v2',
-  ANNOUNCEMENTS: 'lms_announcements_v2',
-  GROUP_MSGS: 'lms_group_msgs_v3',
-  CONVERSATIONS: 'lms_conversations_v3',
-  PRIVATE_MSGS: 'lms_private_msgs_v3',
-  NOTIFICATIONS: 'lms_notifications_v3',
-  AUDIT_LOGS: 'lms_audit_logs_v2',
-  TEACHER_AUTH: 'lms_teacher_auth_v3',
-  LIVE_POLL: 'lms_live_poll_v3'
+  CLASSES: 'lms_classes_v4',
+  STUDENTS: 'lms_students_v4',
+  LESSONS: 'lms_lessons_v4',
+  PROGRESS: 'lms_progress_v4',
+  PRACTICE: 'lms_practice_v4',
+  ANNOUNCEMENTS: 'lms_announcements_v4',
+  GROUP_MSGS: 'lms_group_msgs_v4',
+  CONVERSATIONS: 'lms_conversations_v4',
+  PRIVATE_MSGS: 'lms_private_msgs_v4',
+  NOTIFICATIONS: 'lms_notifications_v4',
+  AUDIT_LOGS: 'lms_audit_logs_v4',
+  TEACHER_AUTH: 'lms_teacher_auth_v4',
+  LIVE_POLL: 'lms_live_poll_v4'
 };
 
 function getLocal<T>(key: string, defaultValue: T): T {
@@ -110,59 +110,31 @@ class StorageService {
   private teacherPasswordSalt: string = '';
 
   constructor() {
-    // Migrate active class if needed
+    // Purge legacy local mock cache keys if present
     if (typeof window !== 'undefined') {
       try {
-        if (localStorage.getItem('active_class_id') === 'C1-097') {
-          localStorage.setItem('active_class_id', 'C1-112');
-        }
-      } catch (e) {
-        // Safe fallback
-      }
+        const legacyKeys = [
+          'lms_lessons', 'lms_lessons_v1', 'lms_lessons_v2', 'lms_lessons_v3',
+          'lms_practice', 'lms_practice_v1', 'lms_practice_v2', 'lms_practice_v3',
+          'lms_progress', 'lms_progress_v1', 'lms_progress_v2', 'lms_progress_v3',
+          'lms_announcements', 'lms_announcements_v1', 'lms_announcements_v2', 'lms_announcements_v3'
+        ];
+        legacyKeys.forEach(k => localStorage.removeItem(k));
+      } catch {}
     }
 
-    const loadedClasses = getLocal(STORAGE_KEYS.CLASSES, INITIAL_CLASSES);
-    const hasOld097 = loadedClasses.some(c => (c.id as string) === 'C1-097' || c.name.includes('097'));
-    if (hasOld097) {
-      this.classes = INITIAL_CLASSES;
-      this.students = INITIAL_STUDENTS;
-      this.lessons = INITIAL_LESSONS;
-      this.progress = INITIAL_PROGRESS;
-      this.practice = INITIAL_PRACTICE_QUESTIONS;
-      this.announcements = INITIAL_ANNOUNCEMENTS;
-      this.groupMessages = INITIAL_GROUP_MESSAGES;
-      this.conversations = INITIAL_PRIVATE_CONVERSATIONS;
-      this.privateMessages = INITIAL_PRIVATE_MESSAGES;
-      this.notifications = INITIAL_NOTIFICATIONS;
-      this.auditLogs = [];
-      this.save();
-    } else {
-      this.classes = loadedClasses;
-      this.students = getLocal(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
-      
-      // Load lessons, filtering out any legacy mock lessons
-      const rawLessons = getLocal<LessonContent[]>(STORAGE_KEYS.LESSONS, INITIAL_LESSONS);
-      const mockLessonIds = new Set(['LES-C1-P12', 'LES-C2-P10', 'LES-C3-P8', 'LES-C3-P14']);
-      this.lessons = (Array.isArray(rawLessons) ? rawLessons : []).filter(l => !mockLessonIds.has(l.id));
-      
-      this.progress = getLocal(STORAGE_KEYS.PROGRESS, INITIAL_PROGRESS);
-      
-      // Load practice questions, filtering out any legacy mock questions
-      const rawPractice = getLocal<PracticeQuestion[]>(STORAGE_KEYS.PRACTICE, INITIAL_PRACTICE_QUESTIONS);
-      const mockPracticeIds = new Set(['PQ-001', 'PQ-002', 'PQ-003', 'PQ-004']);
-      this.practice = (Array.isArray(rawPractice) ? rawPractice : []).filter(p => !mockPracticeIds.has(p.id));
-      
-      // Load announcements, filtering out any legacy mock announcement
-      const rawAnn = getLocal<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
-      this.announcements = (Array.isArray(rawAnn) ? rawAnn : []).filter(a => a.id !== 'ANN-001' && a.id !== 'ANN-1');
-      
-      this.groupMessages = getLocal(STORAGE_KEYS.GROUP_MSGS, INITIAL_GROUP_MESSAGES);
-      this.conversations = getLocal(STORAGE_KEYS.CONVERSATIONS, INITIAL_PRIVATE_CONVERSATIONS);
-      this.privateMessages = getLocal(STORAGE_KEYS.PRIVATE_MSGS, INITIAL_PRIVATE_MESSAGES);
-      this.notifications = getLocal(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
-      this.auditLogs = getLocal(STORAGE_KEYS.AUDIT_LOGS, []);
-      this.save();
-    }
+    this.classes = getLocal(STORAGE_KEYS.CLASSES, INITIAL_CLASSES);
+    this.students = getLocal(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
+    this.lessons = getLocal(STORAGE_KEYS.LESSONS, INITIAL_LESSONS);
+    this.progress = getLocal(STORAGE_KEYS.PROGRESS, INITIAL_PROGRESS);
+    this.practice = getLocal(STORAGE_KEYS.PRACTICE, INITIAL_PRACTICE_QUESTIONS);
+    this.announcements = getLocal(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
+    this.groupMessages = getLocal(STORAGE_KEYS.GROUP_MSGS, INITIAL_GROUP_MESSAGES);
+    this.conversations = getLocal(STORAGE_KEYS.CONVERSATIONS, INITIAL_PRIVATE_CONVERSATIONS);
+    this.privateMessages = getLocal(STORAGE_KEYS.PRIVATE_MSGS, INITIAL_PRIVATE_MESSAGES);
+    this.notifications = getLocal(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
+    this.auditLogs = getLocal(STORAGE_KEYS.AUDIT_LOGS, []);
+    this.save();
 
     this.livePoll = getLocal<LivePoll | null>(STORAGE_KEYS.LIVE_POLL, null);
 

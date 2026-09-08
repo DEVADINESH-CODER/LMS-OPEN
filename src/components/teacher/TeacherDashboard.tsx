@@ -24,6 +24,8 @@ import {
   Check
 } from 'lucide-react';
 
+import { subscribeToChannel } from '../../lib/appwrite';
+
 interface TeacherDashboardProps {
   onNavigate: (tab: string) => void;
   onOpenPublish: () => void;
@@ -34,6 +36,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigate, 
   const currentClass = classes.find(c => c.id === activeClassId) || classes[0];
   const [refreshCount, setRefreshCount] = React.useState(0);
   const [actionNotice, setActionNotice] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    storageService.syncLessons().then(() => setRefreshCount(prev => prev + 1));
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.lessons.documents',
+      () => {
+        storageService.syncLessons().then(() => setRefreshCount(prev => prev + 1));
+      }
+    );
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeClassId]);
 
   const progress = storageService.getClassProgress(activeClassId);
   const students = storageService.getStudents(activeClassId);

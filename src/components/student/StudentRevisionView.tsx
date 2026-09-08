@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { storageService } from '../../lib/storage-provider';
 import { LessonContent } from '../../types';
+import { subscribeToChannel } from '../../lib/appwrite';
 import { CodeRunner } from '../common/CodeRunner';
 import { PredictRunExplain } from '../common/PredictRunExplain';
 import { DebugCard } from '../common/DebugCard';
@@ -23,10 +24,32 @@ export const StudentRevisionView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
   const [activeLesson, setActiveLesson] = useState<LessonContent | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   if (!user || user.role !== 'student') return null;
 
   const studentClass = user.student.classId;
+
+  useEffect(() => {
+    const syncAndLoad = async () => {
+      await storageService.syncLessons();
+      setRefreshKey(prev => prev + 1);
+    };
+
+    syncAndLoad();
+
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.lessons.documents',
+      () => {
+        syncAndLoad();
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [studentClass]);
+
   const lessons = storageService.getPublishedRevisionLessons(studentClass, searchQuery);
 
   const filteredLessons = selectedUnit === 'all' 
