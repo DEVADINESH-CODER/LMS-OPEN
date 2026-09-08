@@ -135,15 +135,25 @@ class StorageService {
     } else {
       this.classes = loadedClasses;
       this.students = getLocal(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
-      this.lessons = getLocal(STORAGE_KEYS.LESSONS, INITIAL_LESSONS);
+      
+      // Load lessons, filtering out any legacy mock lessons
+      const rawLessons = getLocal<LessonContent[]>(STORAGE_KEYS.LESSONS, INITIAL_LESSONS);
+      const mockLessonIds = new Set(['LES-C1-P12', 'LES-C2-P10', 'LES-C3-P8', 'LES-C3-P14']);
+      this.lessons = (Array.isArray(rawLessons) ? rawLessons : []).filter(l => !mockLessonIds.has(l.id));
+      
       this.progress = getLocal(STORAGE_KEYS.PROGRESS, INITIAL_PROGRESS);
       this.practice = getLocal(STORAGE_KEYS.PRACTICE, INITIAL_PRACTICE_QUESTIONS);
-      this.announcements = getLocal(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
+      
+      // Load announcements, filtering out any legacy mock announcement
+      const rawAnn = getLocal<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
+      this.announcements = (Array.isArray(rawAnn) ? rawAnn : []).filter(a => a.id !== 'ANN-001' && a.id !== 'ANN-1');
+      
       this.groupMessages = getLocal(STORAGE_KEYS.GROUP_MSGS, INITIAL_GROUP_MESSAGES);
       this.conversations = getLocal(STORAGE_KEYS.CONVERSATIONS, INITIAL_PRIVATE_CONVERSATIONS);
       this.privateMessages = getLocal(STORAGE_KEYS.PRIVATE_MSGS, INITIAL_PRIVATE_MESSAGES);
       this.notifications = getLocal(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
       this.auditLogs = getLocal(STORAGE_KEYS.AUDIT_LOGS, []);
+      this.save();
     }
 
     this.livePoll = getLocal<LivePoll | null>(STORAGE_KEYS.LIVE_POLL, null);

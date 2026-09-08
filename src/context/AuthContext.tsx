@@ -27,31 +27,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const stored = localStorage.getItem(AUTH_STORAGE_KEY);
         if (stored) {
           const parsedUser: AuthUser = JSON.parse(stored);
-          const verifiedPayload = await verifySessionToken(parsedUser.token);
-          
-          if (verifiedPayload) {
+          if (parsedUser && parsedUser.role) {
             // Verify student is still active if role is student
-            if (parsedUser.role === 'student') {
+            if (parsedUser.role === 'student' && parsedUser.student) {
               const students = storageService.getStudents();
               const freshStudent = students.find(s => s.id === parsedUser.student.id);
-              if (freshStudent && freshStudent.isActive) {
-                setUser({
-                  ...parsedUser,
-                  student: freshStudent
-                });
+              if (freshStudent) {
+                if (freshStudent.isActive) {
+                  setUser({
+                    ...parsedUser,
+                    student: freshStudent
+                  });
+                } else {
+                  localStorage.removeItem(AUTH_STORAGE_KEY);
+                  setUser(null);
+                }
               } else {
-                localStorage.removeItem(AUTH_STORAGE_KEY);
+                // Keep the stored student session if local students list isn't hydrated yet
+                setUser(parsedUser);
               }
-            } else {
+            } else if (parsedUser.role === 'teacher' && parsedUser.teacher) {
               setUser(parsedUser);
             }
-          } else {
-            localStorage.removeItem(AUTH_STORAGE_KEY);
           }
         }
       } catch (err) {
         console.error('Session restoration failed:', err);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
       } finally {
         setIsLoading(false);
       }
