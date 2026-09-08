@@ -199,7 +199,7 @@ export async function fetchLessonsFromServer(): Promise<any[] | null> {
 export async function saveLessonToServer(lesson: any): Promise<void> {
   if (!isAppwriteConfigured) return;
   try {
-    const docId = (lesson.id || `LES-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const docId = (lesson.id || `LES_${lesson.classId}_P${lesson.periodNumber}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
     const payload = {
       lessonId: (lesson.id || docId).slice(0, 64),
       classId: lesson.classId,
@@ -218,4 +218,15 @@ export async function saveLessonToServer(lesson: any): Promise<void> {
     console.warn('Could not sync lesson to Appwrite:', e);
   }
 }
+
+export async function deleteLessonFromServer(lessonId: string): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = lessonId.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    await databases.deleteDocument(databaseId, COLLECTIONS.LESSONS, docId);
+  } catch (e) {
+    console.warn('Could not delete lesson from Appwrite:', e);
+  }
+}
+
 

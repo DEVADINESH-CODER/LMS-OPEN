@@ -40,6 +40,7 @@ import {
   deleteAnnouncementFromServer,
   fetchLessonsFromServer,
   saveLessonToServer,
+  deleteLessonFromServer,
   updateStudentStatusOnServer
 } from './appwrite';
 
@@ -185,15 +186,26 @@ class StorageService {
         setLocal(STORAGE_KEYS.ANNOUNCEMENTS, this.announcements);
       }
 
-      // 3. Sync lessons from Appwrite Cloud
+      // 3. Sync lessons from Appwrite Cloud (strictly deduplicated by classId & periodNumber)
       const serverLessons = await fetchLessonsFromServer();
       if (serverLessons && serverLessons.length > 0) {
-        const lessonMap = new Map(this.lessons.map(l => [l.id, l]));
-        serverLessons.forEach(sl => {
-          if (sl && sl.id) {
-            lessonMap.set(sl.id, sl);
+        const lessonMap = new Map<string, LessonContent>();
+        
+        // Start with current local lessons
+        this.lessons.forEach(l => {
+          if (l && l.classId && l.periodNumber) {
+            lessonMap.set(`${l.classId}_P${l.periodNumber}`, l);
           }
         });
+
+        // Merge server lessons
+        serverLessons.forEach(sl => {
+          if (sl && sl.classId && sl.periodNumber) {
+            const key = `${sl.classId}_P${sl.periodNumber}`;
+            lessonMap.set(key, sl);
+          }
+        });
+
         this.lessons = Array.from(lessonMap.values());
         setLocal(STORAGE_KEYS.LESSONS, this.lessons);
       }
@@ -426,7 +438,18 @@ class StorageService {
   }
 
   public getPublishedRevisionLessons(classId: ClassId, query = ''): LessonContent[] {
-    let list = this.lessons.filter(l => l.classId === classId && l.status === 'published');
+    const published = this.lessons.filter(l => l.classId === classId && l.status === 'published');
+    
+    // Deduplicate strictly by periodNumber so duplicate periods are never shown
+    const periodMap = new Map<number, LessonContent>();
+    published.forEach(l => {
+      const existing = periodMap.get(l.periodNumber);
+      if (!existing || new Date(l.updatedAt || l.publishedAt || 0) >= new Date(existing.updatedAt || existing.publishedAt || 0)) {
+        periodMap.set(l.periodNumber, l);
+      }
+    });
+
+    let list = Array.from(periodMap.values());
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(l => 
@@ -442,66 +465,68 @@ class StorageService {
 
   public publishLesson(lessonData: Omit<LessonContent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): LessonContent {
     const now = new Date().toISOString();
-    if (lessonData.id) {
-      const index = this.lessons.findIndex(l => l.id === lessonData.id);
-      if (index !== -1) {
-        this.lessons[index] = {
-          ...this.lessons[index],
-          ...lessonData,
-          status: 'published',
-          publishedAt: now,
-          updatedAt: now
-        };
-        this.updateClassActivePeriod(lessonData.classId, lessonData.periodNumber);
-        this.save();
-        this.createClassNotification(lessonData.classId, `Period ${lessonData.periodNumber} Published`, `Lesson on "${lessonData.topic}" is now live on your Today page.`, 'lesson');
-        saveLessonToServer(this.lessons[index]).catch(() => {});
-        return this.lessons[index];
-      }
+    const canonicalId = lessonData.id || `LES_${lessonData.classId}_P${lessonData.periodNumber}`;
+    
+    const index = this.lessons.findIndex(l => l.id === canonicalId || (l.classId === lessonData.classId && l.periodNumber === lessonData.periodNumber));
+    
+    let updatedLesson: LessonContent;
+    if (index !== -1) {
+      updatedLesson = {
+        ...this.lessons[index],
+        ...lessonData,
+        id: canonicalId,
+        status: 'published',
+        publishedAt: now,
+        updatedAt: now
+      };
+      this.lessons[index] = updatedLesson;
+    } else {
+      updatedLesson = {
+        ...lessonData,
+        id: canonicalId,
+        status: 'published',
+        publishedAt: now,
+        createdAt: now,
+        updatedAt: now
+      };
+      this.lessons.push(updatedLesson);
     }
 
-    const newLesson: LessonContent = {
-      ...lessonData,
-      id: `LES-${lessonData.classId}-P${lessonData.periodNumber}-${Date.now()}`,
-      status: 'published',
-      publishedAt: now,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.lessons.push(newLesson);
     this.updateClassActivePeriod(lessonData.classId, lessonData.periodNumber);
     this.save();
     this.createClassNotification(lessonData.classId, `Period ${lessonData.periodNumber} Published`, `Lesson on "${lessonData.topic}" is now live on your Today page.`, 'lesson');
-    saveLessonToServer(newLesson).catch(() => {});
-    return newLesson;
+    saveLessonToServer(updatedLesson).catch(() => {});
+    return updatedLesson;
   }
 
   public saveLessonDraft(lessonData: Omit<LessonContent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): LessonContent {
     const now = new Date().toISOString();
-    if (lessonData.id) {
-      const index = this.lessons.findIndex(l => l.id === lessonData.id);
-      if (index !== -1) {
-        this.lessons[index] = {
-          ...this.lessons[index],
-          ...lessonData,
-          status: 'draft',
-          updatedAt: now
-        };
-        this.save();
-        return this.lessons[index];
-      }
-    }
+    const canonicalId = lessonData.id || `LES_${lessonData.classId}_P${lessonData.periodNumber}`;
+    const index = this.lessons.findIndex(l => l.id === canonicalId || (l.classId === lessonData.classId && l.periodNumber === lessonData.periodNumber));
 
-    const draft: LessonContent = {
-      ...lessonData,
-      id: `LES-${lessonData.classId}-P${lessonData.periodNumber}-DRAFT-${Date.now()}`,
-      status: 'draft',
-      createdAt: now,
-      updatedAt: now
-    };
-    this.lessons.push(draft);
+    let draftLesson: LessonContent;
+    if (index !== -1) {
+      draftLesson = {
+        ...this.lessons[index],
+        ...lessonData,
+        id: canonicalId,
+        status: 'draft',
+        updatedAt: now
+      };
+      this.lessons[index] = draftLesson;
+    } else {
+      draftLesson = {
+        ...lessonData,
+        id: canonicalId,
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now
+      };
+      this.lessons.push(draftLesson);
+    }
     this.save();
-    return draft;
+    saveLessonToServer(draftLesson).catch(() => {});
+    return draftLesson;
   }
 
   public duplicateLessonToClass(lessonId: string, targetClassId: ClassId): LessonContent {
@@ -509,17 +534,26 @@ class StorageService {
     if (!source) throw new Error('Source lesson not found.');
 
     const now = new Date().toISOString();
+    const targetCanonicalId = `LES_${targetClassId}_P${source.periodNumber}`;
     const duplicated: LessonContent = {
       ...source,
-      id: `LES-${targetClassId}-P${source.periodNumber}-${Date.now()}`,
+      id: targetCanonicalId,
       classId: targetClassId,
       status: 'draft', // Saved as draft first to allow teacher review
       publishedAt: undefined,
       createdAt: now,
       updatedAt: now
     };
-    this.lessons.push(duplicated);
+
+    const existingIdx = this.lessons.findIndex(l => l.id === targetCanonicalId || (l.classId === targetClassId && l.periodNumber === source.periodNumber));
+    if (existingIdx !== -1) {
+      this.lessons[existingIdx] = duplicated;
+    } else {
+      this.lessons.push(duplicated);
+    }
+
     this.save();
+    saveLessonToServer(duplicated).catch(() => {});
     return duplicated;
   }
 
@@ -544,6 +578,9 @@ class StorageService {
 
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'LESSON_REVERTED', `Reverted Period ${lesson.periodNumber} (${lesson.topic}) for ${lesson.classId} to draft`);
+    
+    // Sync revert to Appwrite Cloud immediately
+    saveLessonToServer(lesson).catch(() => {});
     return lesson;
   }
 
@@ -572,6 +609,9 @@ class StorageService {
 
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'LESSON_DELETED', `Deleted Period ${lesson.periodNumber} for ${lesson.classId}`);
+    
+    // Delete document from Appwrite Cloud
+    deleteLessonFromServer(lessonId).catch(() => {});
   }
 
   private updateClassActivePeriod(classId: ClassId, periodNumber: number) {
