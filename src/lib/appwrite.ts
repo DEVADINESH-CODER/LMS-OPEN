@@ -148,7 +148,8 @@ export async function fetchAnnouncementsFromServer(): Promise<any[] | null> {
 export async function saveAnnouncementToServer(ann: any): Promise<void> {
   if (!isAppwriteConfigured) return;
   try {
-    await databases.createDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, ann.id, {
+    const docId = (ann.id || `ANN-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
       announcementId: ann.id,
       title: ann.title,
       content: ann.content,
@@ -156,23 +157,23 @@ export async function saveAnnouncementToServer(ann: any): Promise<void> {
       priority: ann.priority,
       authorName: ann.authorName,
       createdAt: ann.createdAt
-    });
-  } catch {
+    };
     try {
-      await databases.updateDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, ann.id, {
-        title: ann.title,
-        content: ann.content,
-        targetClass: ann.targetClass,
-        priority: ann.priority
-      });
-    } catch {}
+      await databases.getDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync announcement to Appwrite:', e);
   }
 }
 
 export async function deleteAnnouncementFromServer(annId: string): Promise<void> {
   if (!isAppwriteConfigured) return;
   try {
-    await databases.deleteDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, annId);
+    const docId = annId.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    await databases.deleteDocument(databaseId, COLLECTIONS.ANNOUNCEMENTS, docId);
   } catch {}
 }
 
@@ -200,7 +201,7 @@ export async function saveLessonToServer(lesson: any): Promise<void> {
   try {
     const docId = (lesson.id || `LES-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
     const payload = {
-      lessonId: (lesson.id || docId).slice(0, 32),
+      lessonId: (lesson.id || docId).slice(0, 64),
       classId: lesson.classId,
       periodNumber: Number(lesson.periodNumber) || 1,
       topic: (lesson.topic || 'Untitled Lesson').slice(0, 255),
@@ -208,9 +209,10 @@ export async function saveLessonToServer(lesson: any): Promise<void> {
       publishedAt: lesson.publishedAt || new Date().toISOString()
     };
     try {
-      await databases.createDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
-    } catch {
+      await databases.getDocument(databaseId, COLLECTIONS.LESSONS, docId);
       await databases.updateDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.LESSONS, docId, payload);
     }
   } catch (e) {
     console.warn('Could not sync lesson to Appwrite:', e);
