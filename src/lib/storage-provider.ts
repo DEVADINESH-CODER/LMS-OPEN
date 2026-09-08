@@ -52,7 +52,10 @@ import {
   saveClassProgressToServer,
   fetchPracticeQuestionsFromServer,
   savePracticeQuestionToServer,
-  deletePracticeQuestionFromServer
+  deletePracticeQuestionFromServer,
+  fetchLivePollFromServer,
+  saveLivePollToServer,
+  deleteLivePollFromServer
 } from './appwrite';
 
 const STORAGE_KEYS = {
@@ -218,6 +221,23 @@ class StorageService {
     } catch {}
   }
 
+  public async syncLivePoll(): Promise<void> {
+    try {
+      const serverPoll = await fetchLivePollFromServer();
+      if (serverPoll) {
+        const now = Date.now();
+        const exp = new Date(serverPoll.expiresAt).getTime();
+        if (now < exp && serverPoll.isActive) {
+          this.livePoll = serverPoll;
+          setLocal(STORAGE_KEYS.LIVE_POLL, this.livePoll);
+          return;
+        }
+      }
+      this.livePoll = null;
+      setLocal(STORAGE_KEYS.LIVE_POLL, null);
+    } catch {}
+  }
+
   public async syncWithServer(): Promise<void> {
     try {
       // 1. Sync teacher auth from Appwrite Cloud
@@ -253,6 +273,9 @@ class StorageService {
 
       // 7. Sync Private Conversations & Messages from Appwrite Cloud
       await this.syncPrivateMessages();
+
+      // 8. Sync Live Poll from Appwrite Cloud
+      await this.syncLivePoll();
     } catch {
       // Fallback to local storage silently
     }
@@ -1240,6 +1263,7 @@ class StorageService {
     this.livePoll = newPoll;
     setLocal(STORAGE_KEYS.LIVE_POLL, newPoll);
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'POLL_LAUNCHED', `Launched 5-min live poll "${cleanQuestion}" for ${targetClass}`);
+    saveLivePollToServer(newPoll).catch(() => {});
     return newPoll;
   }
 
@@ -1296,6 +1320,7 @@ class StorageService {
     poll.votes[studentId] = vote;
     this.livePoll = poll;
     setLocal(STORAGE_KEYS.LIVE_POLL, poll);
+    saveLivePollToServer(poll).catch(() => {});
     return poll;
   }
 
@@ -1306,6 +1331,8 @@ class StorageService {
       this.livePoll = null;
       setLocal(STORAGE_KEYS.LIVE_POLL, null);
       this.logAudit(INITIAL_TEACHER.id, 'teacher', 'POLL_ENDED', `Closed live poll "${poll.question}"`);
+      saveLivePollToServer({ ...poll, isActive: false }).catch(() => {});
+      deleteLivePollFromServer().catch(() => {});
     }
   }
 

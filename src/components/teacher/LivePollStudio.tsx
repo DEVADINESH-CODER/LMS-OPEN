@@ -27,6 +27,8 @@ const QUICK_PRESETS = [
   "Ready to start today's hands-on practice problems?"
 ];
 
+import { subscribeToChannel } from '../../lib/appwrite';
+
 export const LivePollStudio: React.FC = () => {
   const { classes, activeClassId } = useClass();
   const [activePoll, setActivePoll] = useState<LivePoll | null>(storageService.getLivePoll());
@@ -38,7 +40,8 @@ export const LivePollStudio: React.FC = () => {
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
   // Sync state with storage and tick timer
-  const refreshPoll = () => {
+  const refreshPoll = async () => {
+    await storageService.syncLivePoll();
     const current = storageService.getLivePoll();
     setActivePoll(current);
     if (current) {
@@ -51,18 +54,18 @@ export const LivePollStudio: React.FC = () => {
 
   useEffect(() => {
     refreshPoll();
-    const interval = setInterval(refreshPoll, 1000);
+    const interval = setInterval(refreshPoll, 2000);
 
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'lms_live_poll_v3') {
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.live_poll.documents',
+      () => {
         refreshPoll();
       }
-    };
-    window.addEventListener('storage', handleStorage);
+    );
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('storage', handleStorage);
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
 

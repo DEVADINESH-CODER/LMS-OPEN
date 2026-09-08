@@ -33,6 +33,7 @@ export const COLLECTIONS = {
   PRIVATE_MESSAGES: 'private_messages',
   NOTIFICATIONS: 'notifications',
   AUDIT_LOGS: 'audit_logs',
+  LIVE_POLL: 'live_poll',
 };
 
 /**
@@ -469,6 +470,53 @@ export async function deletePracticeQuestionFromServer(questionId: string): Prom
   } catch (e) {
     console.warn('Could not delete practice question from Appwrite:', e);
   }
+}
+
+// --- LIVE CLASSROOM POLL SYNC ---
+
+export async function fetchLivePollFromServer(): Promise<any | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const doc = await databases.getDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll');
+    if (doc && doc.pollData) {
+      const parsed = JSON.parse(doc.pollData);
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLivePollToServer(poll: any): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = 'active_poll';
+    const payload = {
+      pollId: poll.id || `POLL-${Date.now()}`,
+      targetClass: poll.targetClass || 'all',
+      question: (poll.question || '').slice(0, 500),
+      pollData: JSON.stringify(poll),
+      isActive: Boolean(poll.isActive),
+      expiresAt: poll.expiresAt || new Date().toISOString()
+    };
+    try {
+      await databases.createDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
+    } catch {
+      try {
+        await databases.updateDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('Could not save live poll to Appwrite:', e);
+  }
+}
+
+export async function deleteLivePollFromServer(): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    await databases.deleteDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll');
+  } catch {}
 }
 
 

@@ -16,6 +16,8 @@ import {
   ThumbsDown
 } from 'lucide-react';
 
+import { subscribeToChannel } from '../../lib/appwrite';
+
 export const LivePollBanner: React.FC = () => {
   const { user } = useAuth();
   const [poll, setPoll] = useState<LivePoll | null>(null);
@@ -24,12 +26,13 @@ export const LivePollBanner: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   // Sync poll state
-  const syncPoll = () => {
+  const syncPoll = async () => {
     if (!user || user.role !== 'student') {
       setPoll(null);
       return;
     }
 
+    await storageService.syncLivePoll();
     const current = storageService.getLivePoll(user.student.classId);
     setPoll(current);
 
@@ -43,18 +46,18 @@ export const LivePollBanner: React.FC = () => {
 
   useEffect(() => {
     syncPoll();
-    const interval = setInterval(syncPoll, 1000);
+    const interval = setInterval(syncPoll, 2000);
 
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'lms_live_poll_v3') {
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.live_poll.documents',
+      () => {
         syncPoll();
       }
-    };
-    window.addEventListener('storage', handleStorage);
+    );
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('storage', handleStorage);
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [user]);
 
