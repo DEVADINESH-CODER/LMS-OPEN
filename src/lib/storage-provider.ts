@@ -41,7 +41,18 @@ import {
   fetchLessonsFromServer,
   saveLessonToServer,
   deleteLessonFromServer,
-  updateStudentStatusOnServer
+  updateStudentStatusOnServer,
+  fetchGroupMessagesFromServer,
+  saveGroupMessageToServer,
+  fetchPrivateConversationsFromServer,
+  savePrivateConversationToServer,
+  fetchPrivateMessagesFromServer,
+  savePrivateMessageToServer,
+  fetchClassProgressFromServer,
+  saveClassProgressToServer,
+  fetchPracticeQuestionsFromServer,
+  savePracticeQuestionToServer,
+  deletePracticeQuestionFromServer
 } from './appwrite';
 
 const STORAGE_KEYS = {
@@ -208,6 +219,52 @@ class StorageService {
 
         this.lessons = Array.from(lessonMap.values());
         setLocal(STORAGE_KEYS.LESSONS, this.lessons);
+      }
+
+      // 4. Sync Class Progress from Appwrite Cloud
+      const serverProgress = await fetchClassProgressFromServer();
+      if (serverProgress) {
+        this.progress = { ...this.progress, ...serverProgress };
+        setLocal(STORAGE_KEYS.PROGRESS, this.progress);
+      }
+
+      // 5. Sync Practice Bank from Appwrite Cloud
+      const serverPractice = await fetchPracticeQuestionsFromServer();
+      if (serverPractice && serverPractice.length > 0) {
+        const practiceMap = new Map<string, PracticeQuestion>();
+        this.practice.forEach(p => practiceMap.set(p.id, p));
+        serverPractice.forEach(sp => practiceMap.set(sp.id, sp));
+        this.practice = Array.from(practiceMap.values());
+        setLocal(STORAGE_KEYS.PRACTICE, this.practice);
+      }
+
+      // 6. Sync Group Messages from Appwrite Cloud
+      const serverGroupMsgs = await fetchGroupMessagesFromServer();
+      if (serverGroupMsgs && serverGroupMsgs.length > 0) {
+        const msgMap = new Map<string, GroupMessage>();
+        this.groupMessages.forEach(m => msgMap.set(m.id, m));
+        serverGroupMsgs.forEach(sm => msgMap.set(sm.id, sm));
+        this.groupMessages = Array.from(msgMap.values());
+        setLocal(STORAGE_KEYS.GROUP_MSGS, this.groupMessages);
+      }
+
+      // 7. Sync Private Conversations & Messages from Appwrite Cloud
+      const serverConvs = await fetchPrivateConversationsFromServer();
+      if (serverConvs && serverConvs.length > 0) {
+        const convMap = new Map<string, PrivateConversation>();
+        this.conversations.forEach(c => convMap.set(c.id, c));
+        serverConvs.forEach(sc => convMap.set(sc.id, sc));
+        this.conversations = Array.from(convMap.values());
+        setLocal(STORAGE_KEYS.CONVERSATIONS, this.conversations);
+      }
+
+      const serverPrivateMsgs = await fetchPrivateMessagesFromServer();
+      if (serverPrivateMsgs && serverPrivateMsgs.length > 0) {
+        const pmsgMap = new Map<string, PrivateMessage>();
+        this.privateMessages.forEach(pm => pmsgMap.set(pm.id, pm));
+        serverPrivateMsgs.forEach(spm => pmsgMap.set(spm.id, spm));
+        this.privateMessages = Array.from(pmsgMap.values());
+        setLocal(STORAGE_KEYS.PRIVATE_MSGS, this.privateMessages);
       }
     } catch {
       // Fallback to local storage silently
@@ -657,6 +714,7 @@ class StorageService {
       lastUpdated: new Date().toISOString()
     };
     this.save();
+    saveClassProgressToServer(this.progress[classId]).catch(() => {});
     return this.progress[classId];
   }
 
@@ -696,6 +754,7 @@ class StorageService {
 
     this.groupMessages.push(newMsg);
     this.save();
+    saveGroupMessageToServer(newMsg).catch(() => {});
     return newMsg;
   }
 
@@ -705,6 +764,7 @@ class StorageService {
     if (msg) {
       msg.isPinned = isPinned;
       this.save();
+      saveGroupMessageToServer(msg).catch(() => {});
     }
   }
 
@@ -714,6 +774,7 @@ class StorageService {
     if (msg) {
       msg.isDeleted = true;
       this.save();
+      saveGroupMessageToServer(msg).catch(() => {});
     }
   }
 
@@ -795,6 +856,7 @@ class StorageService {
 
     this.privateMessages.push(newMsg);
     conv.lastMessageAt = now;
+    conv.lastMessageSnippet = newMsg.content.slice(0, 100);
     if (sender.role === 'student') {
       conv.teacherUnreadCount += 1;
     } else {
@@ -802,6 +864,8 @@ class StorageService {
     }
 
     this.save();
+    savePrivateConversationToServer(conv).catch(() => {});
+    savePrivateMessageToServer(newMsg).catch(() => {});
     return newMsg;
   }
 
@@ -1126,6 +1190,7 @@ class StorageService {
     this.practice.unshift(newQuestion);
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'PRACTICE_QUESTION_ADDED', `Added practice question "${newQuestion.title}" to Unit ${newQuestion.unit}`);
+    savePracticeQuestionToServer(newQuestion).catch(() => {});
     return newQuestion;
   }
 
@@ -1143,6 +1208,7 @@ class StorageService {
 
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'PRACTICE_QUESTION_UPDATED', `Updated practice question "${this.practice[index].title}"`);
+    savePracticeQuestionToServer(this.practice[index]).catch(() => {});
     return this.practice[index];
   }
 
@@ -1154,6 +1220,7 @@ class StorageService {
     this.practice.splice(index, 1);
     this.save();
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'PRACTICE_QUESTION_DELETED', `Deleted practice question "${deleted.title}" (ID: ${questionId})`);
+    deletePracticeQuestionFromServer(questionId).catch(() => {});
   }
 
   // --- LIVE CLASSROOM POLL (DYNAMIC 5-MINUTE AUTO-EXPIRING) ---

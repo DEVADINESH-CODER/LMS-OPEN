@@ -229,4 +229,240 @@ export async function deleteLessonFromServer(lessonId: string): Promise<void> {
   }
 }
 
+// --- GROUP CHAT SYNC ---
+
+export async function fetchGroupMessagesFromServer(classId?: string): Promise<any[] | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const queries: any[] = [];
+    const res = await databases.listDocuments(databaseId, COLLECTIONS.GROUP_MESSAGES, queries);
+    return res.documents.map(d => ({
+      id: d.messageId || d.$id,
+      classId: d.classId,
+      senderId: d.senderId,
+      senderName: d.senderName,
+      senderRole: d.senderRole,
+      content: d.content,
+      isPinned: Boolean(d.isPinned),
+      isDeleted: Boolean(d.isDeleted),
+      createdAt: d.createdAt
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGroupMessageToServer(msg: any): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = (msg.id || `GM-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
+      messageId: msg.id || docId,
+      classId: msg.classId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      senderRole: msg.senderRole,
+      content: msg.content,
+      isPinned: Boolean(msg.isPinned),
+      isDeleted: Boolean(msg.isDeleted),
+      createdAt: msg.createdAt || new Date().toISOString()
+    };
+    try {
+      await databases.getDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.GROUP_MESSAGES, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync group message to Appwrite:', e);
+  }
+}
+
+// --- PRIVATE CHAT SYNC ---
+
+export async function fetchPrivateConversationsFromServer(): Promise<any[] | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const res = await databases.listDocuments(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS);
+    return res.documents.map(d => ({
+      id: d.conversationId || d.$id,
+      studentId: d.studentId,
+      classId: d.classId,
+      studentName: d.studentName,
+      studentRegNo: d.studentRegNo,
+      lastMessageAt: d.lastMessageAt,
+      lastMessageSnippet: d.lastMessageSnippet || ''
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export async function savePrivateConversationToServer(conv: any): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = (conv.id || `CONV-${conv.studentId}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
+      conversationId: conv.id || docId,
+      studentId: conv.studentId,
+      classId: conv.classId,
+      studentName: conv.studentName,
+      studentRegNo: conv.studentRegNo || '',
+      lastMessageAt: conv.lastMessageAt || new Date().toISOString(),
+      lastMessageSnippet: (conv.lastMessageSnippet || '').slice(0, 255)
+    };
+    try {
+      await databases.getDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.PRIVATE_CONVERSATIONS, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync private conversation to Appwrite:', e);
+  }
+}
+
+export async function fetchPrivateMessagesFromServer(): Promise<any[] | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const res = await databases.listDocuments(databaseId, COLLECTIONS.PRIVATE_MESSAGES);
+    return res.documents.map(d => ({
+      id: d.messageId || d.$id,
+      conversationId: d.conversationId,
+      senderId: d.senderId,
+      senderName: d.senderName,
+      senderRole: d.senderRole,
+      content: d.content,
+      isRead: Boolean(d.isRead),
+      createdAt: d.createdAt
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export async function savePrivateMessageToServer(msg: any): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = (msg.id || `PM-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
+      messageId: msg.id || docId,
+      conversationId: msg.conversationId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      senderRole: msg.senderRole,
+      content: msg.content,
+      isRead: Boolean(msg.isRead),
+      createdAt: msg.createdAt || new Date().toISOString()
+    };
+    try {
+      await databases.getDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.PRIVATE_MESSAGES, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync private message to Appwrite:', e);
+  }
+}
+
+// --- CLASS PROGRESS SYNC ---
+
+export async function fetchClassProgressFromServer(): Promise<Record<string, any> | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const res = await databases.listDocuments(databaseId, COLLECTIONS.CLASS_PROGRESS);
+    const progressMap: Record<string, any> = {};
+    for (const d of res.documents) {
+      if (d.progressData) {
+        try {
+          progressMap[d.classId] = JSON.parse(d.progressData);
+        } catch {}
+      }
+    }
+    return Object.keys(progressMap).length > 0 ? progressMap : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveClassProgressToServer(progress: any): Promise<void> {
+  if (!isAppwriteConfigured || !progress.classId) return;
+  try {
+    const docId = `PROG_${progress.classId}`.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
+      classId: progress.classId,
+      currentPeriod: Number(progress.currentPeriod) || 1,
+      currentUnit: Number(progress.currentUnit) || 1,
+      currentTopic: (progress.currentTopic || '').slice(0, 255),
+      progressData: JSON.stringify(progress),
+      lastUpdated: progress.lastUpdated || new Date().toISOString()
+    };
+    try {
+      await databases.getDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.CLASS_PROGRESS, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync class progress to Appwrite:', e);
+  }
+}
+
+// --- PRACTICE BANK SYNC ---
+
+export async function fetchPracticeQuestionsFromServer(): Promise<any[] | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const res = await databases.listDocuments(databaseId, COLLECTIONS.PRACTICE_QUESTIONS);
+    return res.documents
+      .map(d => {
+        if (d.questionData) {
+          try {
+            return JSON.parse(d.questionData);
+          } catch {}
+        }
+        return null;
+      })
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+export async function savePracticeQuestionToServer(q: any): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = (q.id || `PQ-${Date.now()}`).replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    const payload = {
+      questionId: q.id || docId,
+      unit: Number(q.unit) || 1,
+      periodNumber: Number(q.periodNumber) || 1,
+      topic: (q.topic || 'Python Practice').slice(0, 255),
+      difficulty: q.difficulty || 'standard',
+      type: q.type || 'coding',
+      questionData: JSON.stringify(q)
+    };
+    try {
+      await databases.getDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId);
+      await databases.updateDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId, payload);
+    } catch {
+      await databases.createDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId, payload);
+    }
+  } catch (e) {
+    console.warn('Could not sync practice question to Appwrite:', e);
+  }
+}
+
+export async function deletePracticeQuestionFromServer(questionId: string): Promise<void> {
+  if (!isAppwriteConfigured) return;
+  try {
+    const docId = questionId.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 36);
+    await databases.deleteDocument(databaseId, COLLECTIONS.PRACTICE_QUESTIONS, docId);
+  } catch (e) {
+    console.warn('Could not delete practice question from Appwrite:', e);
+  }
+}
+
+
 

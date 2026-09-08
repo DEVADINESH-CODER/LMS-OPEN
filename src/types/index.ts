@@ -246,6 +246,7 @@ export interface PrivateConversation {
   studentName: string;
   studentRegNo: string;
   lastMessageAt: string;
+  lastMessageSnippet?: string;
   teacherUnreadCount: number;
   studentUnreadCount: number;
 }
