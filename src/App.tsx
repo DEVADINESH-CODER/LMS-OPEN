@@ -34,7 +34,14 @@ const MainLayout: React.FC = () => {
   const { user, isLoading } = useAuth();
   const { activeClassId } = useClass();
 
-  const [currentTab, setCurrentTab] = useState<string>('today');
+  // Retrieve saved tab from hash or localStorage
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    const hash = window.location.hash.replace('#', '').trim();
+    if (hash) return hash;
+    const saved = localStorage.getItem('lms_current_active_tab');
+    if (saved) return saved;
+    return 'today';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Modals
@@ -43,16 +50,46 @@ const MainLayout: React.FC = () => {
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showTeacherPasswordModal, setShowTeacherPasswordModal] = useState(false);
 
-  // Set default tab based on user role
+  // Set and validate tab based on user role
   React.useEffect(() => {
     if (user) {
-      if (user.role === 'teacher') {
-        setCurrentTab('dashboard');
-      } else {
-        setCurrentTab('today');
-      }
+      const hash = window.location.hash.replace('#', '').trim();
+      const saved = localStorage.getItem('lms_current_active_tab');
+      const validTabsForRole = user.role === 'teacher' 
+        ? ['dashboard', 'master-plan', 'students', 'live-poll', 'group-chat', 'private-chat', 'practice-bank', 'practice-preview', 'announcements', 'syllabus']
+        : ['today', 'revision', 'practice', 'group-chat', 'private-chat', 'syllabus', 'announcements', 'profile'];
+      
+      const targetTab = hash && validTabsForRole.includes(hash)
+        ? hash
+        : saved && validTabsForRole.includes(saved)
+        ? saved
+        : user.role === 'teacher' ? 'dashboard' : 'today';
+
+      setCurrentTab(targetTab);
+      window.location.hash = targetTab;
+      localStorage.setItem('lms_current_active_tab', targetTab);
     }
   }, [user?.role]);
+
+  // Sync tab navigation with hash & localStorage
+  const handleNavigateTab = (tab: string) => {
+    setCurrentTab(tab);
+    window.location.hash = tab;
+    localStorage.setItem('lms_current_active_tab', tab);
+  };
+
+  // Listen for browser back/forward navigation
+  React.useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace('#', '').trim();
+      if (hash) {
+        setCurrentTab(hash);
+        localStorage.setItem('lms_current_active_tab', hash);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   if (isLoading) {
     return (
@@ -86,7 +123,7 @@ const MainLayout: React.FC = () => {
         onOpenSidebar={() => setIsSidebarOpen(true)}
         onOpenChangePin={() => setShowChangePinModal(true)}
         onOpenChangePassword={() => setShowTeacherPasswordModal(true)}
-        onNavigate={(tab) => setCurrentTab(tab)}
+        onNavigate={(tab) => handleNavigateTab(tab)}
       />
 
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
@@ -99,7 +136,7 @@ const MainLayout: React.FC = () => {
             } else if (tab === 'change-password') {
               setShowTeacherPasswordModal(true);
             } else {
-              setCurrentTab(tab);
+              handleNavigateTab(tab);
             }
           }}
           isOpen={isSidebarOpen}
@@ -115,7 +152,7 @@ const MainLayout: React.FC = () => {
               {currentTab === 'practice' && <StudentPracticeView />}
               {currentTab === 'group-chat' && <ClassGroupChat />}
               {currentTab === 'private-chat' && <PrivateChatView />}
-              {currentTab === 'syllabus' && <StudentSyllabusView onNavigate={(tab) => setCurrentTab(tab)} />}
+              {currentTab === 'syllabus' && <StudentSyllabusView onNavigate={(tab) => handleNavigateTab(tab)} />}
               {currentTab === 'announcements' && <StudentAnnouncementsView />}
               {currentTab === 'profile' && <StudentProfileView />}
             </>
@@ -123,7 +160,7 @@ const MainLayout: React.FC = () => {
             <>
               {currentTab === 'dashboard' && (
                 <TeacherDashboard
-                  onNavigate={(tab) => setCurrentTab(tab)}
+                  onNavigate={(tab) => handleNavigateTab(tab)}
                   onOpenPublish={() => setShowPublishModal(true)}
                 />
               )}
@@ -135,7 +172,7 @@ const MainLayout: React.FC = () => {
               {currentTab === 'group-chat' && <ClassGroupChat />}
               {currentTab === 'private-chat' && <PrivateChatView />}
               {currentTab === 'practice-bank' && (
-                <PracticeBankManager onPreviewStudentMode={() => setCurrentTab('practice-preview')} />
+                <PracticeBankManager onPreviewStudentMode={() => handleNavigateTab('practice-preview')} />
               )}
               {currentTab === 'practice-preview' && (
                 <div className="space-y-4">
@@ -145,17 +182,17 @@ const MainLayout: React.FC = () => {
                       <span className="text-slate-500">• Previewing student solving experience</span>
                     </div>
                     <button
-                      onClick={() => setCurrentTab('practice-bank')}
+                      onClick={() => handleNavigateTab('practice-bank')}
                       className="px-3.5 py-1.5 rounded-xl bg-sky-600 text-white font-bold hover:bg-sky-500 text-xs"
                     >
                       Back to Practice Bank Manager
                     </button>
                   </div>
-                  <StudentPracticeView onOpenManageBank={() => setCurrentTab('practice-bank')} />
+                  <StudentPracticeView onOpenManageBank={() => handleNavigateTab('practice-bank')} />
                 </div>
               )}
               {currentTab === 'announcements' && <AnnouncementsManager />}
-              {currentTab === 'syllabus' && <StudentSyllabusView onNavigate={(tab) => setCurrentTab(tab)} />}
+              {currentTab === 'syllabus' && <StudentSyllabusView onNavigate={(tab) => handleNavigateTab(tab)} />}
             </>
           )}
         </main>

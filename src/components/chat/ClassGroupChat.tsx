@@ -15,6 +15,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { subscribeToChannel } from '../../lib/appwrite';
+
 export const ClassGroupChat: React.FC = () => {
   const { user } = useAuth();
   const { activeClassId } = useClass();
@@ -27,9 +29,10 @@ export const ClassGroupChat: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadMessages = () => {
+  const loadMessages = async () => {
     if (!user) return;
     try {
+      await storageService.syncGroupMessages();
       const msgs = storageService.getGroupMessages(
         targetClassId, 
         user.role, 
@@ -44,8 +47,20 @@ export const ClassGroupChat: React.FC = () => {
 
   useEffect(() => {
     loadMessages();
-    const interval = setInterval(loadMessages, 3000); // 3s polling for group chat
-    return () => clearInterval(interval);
+    const interval = setInterval(loadMessages, 3000); // 3s polling fallback
+    
+    // Realtime channel subscription
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.group_messages.documents',
+      () => {
+        loadMessages();
+      }
+    );
+
+    return () => {
+      clearInterval(interval);
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [targetClassId, user]);
 
   useEffect(() => {

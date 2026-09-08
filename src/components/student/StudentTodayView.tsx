@@ -36,9 +36,9 @@ export const StudentTodayView: React.FC = () => {
         <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950 flex items-center justify-center mx-auto text-sky-600 mb-4">
           <Calendar className="w-8 h-8" />
         </div>
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Lesson Published Today Yet</h3>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">No Lesson Published Yet</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-          Your instructor has not yet published today's session for class <span className="font-semibold text-sky-600">{studentClass}</span>. Check the Revision section to review past lectures or explore Practice problems!
+          Your instructor has not yet published the latest lecture for class <span className="font-semibold text-sky-600">{studentClass}</span>. Check the Revision section to review past lectures or explore Practice problems!
         </p>
       </div>
     );
@@ -177,14 +177,14 @@ export const StudentTodayView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Today's Main Hands-on Code with Step-by-Step Breakdown */}
+      {/* 4. Latest Main Hands-on Code with Step-by-Step Breakdown */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
         <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-sm mb-2">
           <Code className="w-4 h-4" />
-          <span>Today's Core Program & Step-by-Step Explanation</span>
+          <span>Core Lesson Program & Step-by-Step Explanation</span>
         </div>
 
-        <CodeRunner code={todayLesson.code} expectedOutput={todayLesson.expectedOutput} title="Main Today Script" allowEdit={true} />
+        <CodeRunner code={todayLesson.code} expectedOutput={todayLesson.expectedOutput} title="Main Python Script" allowEdit={true} />
 
         {/* Step-by-Step Walkthrough */}
         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">

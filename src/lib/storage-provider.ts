@@ -143,7 +143,11 @@ class StorageService {
       this.lessons = (Array.isArray(rawLessons) ? rawLessons : []).filter(l => !mockLessonIds.has(l.id));
       
       this.progress = getLocal(STORAGE_KEYS.PROGRESS, INITIAL_PROGRESS);
-      this.practice = getLocal(STORAGE_KEYS.PRACTICE, INITIAL_PRACTICE_QUESTIONS);
+      
+      // Load practice questions, filtering out any legacy mock questions
+      const rawPractice = getLocal<PracticeQuestion[]>(STORAGE_KEYS.PRACTICE, INITIAL_PRACTICE_QUESTIONS);
+      const mockPracticeIds = new Set(['PQ-001', 'PQ-002', 'PQ-003', 'PQ-004']);
+      this.practice = (Array.isArray(rawPractice) ? rawPractice : []).filter(p => !mockPracticeIds.has(p.id));
       
       // Load announcements, filtering out any legacy mock announcement
       const rawAnn = getLocal<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
@@ -169,6 +173,51 @@ class StorageService {
     this.syncWithServer().catch(() => {});
   }
 
+  public async syncGroupMessages(): Promise<void> {
+    try {
+      const serverGroupMsgs = await fetchGroupMessagesFromServer();
+      if (serverGroupMsgs !== null) {
+        this.groupMessages = serverGroupMsgs;
+        setLocal(STORAGE_KEYS.GROUP_MSGS, this.groupMessages);
+      }
+    } catch {}
+  }
+
+  public async syncPrivateMessages(): Promise<void> {
+    try {
+      const serverConvs = await fetchPrivateConversationsFromServer();
+      if (serverConvs !== null) {
+        this.conversations = serverConvs;
+        setLocal(STORAGE_KEYS.CONVERSATIONS, this.conversations);
+      }
+      const serverPrivateMsgs = await fetchPrivateMessagesFromServer();
+      if (serverPrivateMsgs !== null) {
+        this.privateMessages = serverPrivateMsgs;
+        setLocal(STORAGE_KEYS.PRIVATE_MSGS, this.privateMessages);
+      }
+    } catch {}
+  }
+
+  public async syncPractice(): Promise<void> {
+    try {
+      const serverPractice = await fetchPracticeQuestionsFromServer();
+      if (serverPractice !== null) {
+        this.practice = serverPractice;
+        setLocal(STORAGE_KEYS.PRACTICE, this.practice);
+      }
+    } catch {}
+  }
+
+  public async syncLessons(): Promise<void> {
+    try {
+      const serverLessons = await fetchLessonsFromServer();
+      if (serverLessons !== null) {
+        this.lessons = serverLessons;
+        setLocal(STORAGE_KEYS.LESSONS, this.lessons);
+      }
+    } catch {}
+  }
+
   public async syncWithServer(): Promise<void> {
     try {
       // 1. Sync teacher auth from Appwrite Cloud
@@ -181,34 +230,13 @@ class StorageService {
 
       // 2. Sync announcements from Appwrite Cloud
       const serverAnnouncements = await fetchAnnouncementsFromServer();
-      if (serverAnnouncements && serverAnnouncements.length > 0) {
+      if (serverAnnouncements !== null) {
         this.announcements = serverAnnouncements;
         setLocal(STORAGE_KEYS.ANNOUNCEMENTS, this.announcements);
       }
 
       // 3. Sync lessons from Appwrite Cloud (strictly deduplicated by classId & periodNumber)
-      const serverLessons = await fetchLessonsFromServer();
-      if (serverLessons && serverLessons.length > 0) {
-        const lessonMap = new Map<string, LessonContent>();
-        
-        // Start with current local lessons
-        this.lessons.forEach(l => {
-          if (l && l.classId && l.periodNumber) {
-            lessonMap.set(`${l.classId}_P${l.periodNumber}`, l);
-          }
-        });
-
-        // Merge server lessons
-        serverLessons.forEach(sl => {
-          if (sl && sl.classId && sl.periodNumber) {
-            const key = `${sl.classId}_P${sl.periodNumber}`;
-            lessonMap.set(key, sl);
-          }
-        });
-
-        this.lessons = Array.from(lessonMap.values());
-        setLocal(STORAGE_KEYS.LESSONS, this.lessons);
-      }
+      await this.syncLessons();
 
       // 4. Sync Class Progress from Appwrite Cloud
       const serverProgress = await fetchClassProgressFromServer();
@@ -218,43 +246,13 @@ class StorageService {
       }
 
       // 5. Sync Practice Bank from Appwrite Cloud
-      const serverPractice = await fetchPracticeQuestionsFromServer();
-      if (serverPractice && serverPractice.length > 0) {
-        const practiceMap = new Map<string, PracticeQuestion>();
-        this.practice.forEach(p => practiceMap.set(p.id, p));
-        serverPractice.forEach(sp => practiceMap.set(sp.id, sp));
-        this.practice = Array.from(practiceMap.values());
-        setLocal(STORAGE_KEYS.PRACTICE, this.practice);
-      }
+      await this.syncPractice();
 
       // 6. Sync Group Messages from Appwrite Cloud
-      const serverGroupMsgs = await fetchGroupMessagesFromServer();
-      if (serverGroupMsgs && serverGroupMsgs.length > 0) {
-        const msgMap = new Map<string, GroupMessage>();
-        this.groupMessages.forEach(m => msgMap.set(m.id, m));
-        serverGroupMsgs.forEach(sm => msgMap.set(sm.id, sm));
-        this.groupMessages = Array.from(msgMap.values());
-        setLocal(STORAGE_KEYS.GROUP_MSGS, this.groupMessages);
-      }
+      await this.syncGroupMessages();
 
       // 7. Sync Private Conversations & Messages from Appwrite Cloud
-      const serverConvs = await fetchPrivateConversationsFromServer();
-      if (serverConvs && serverConvs.length > 0) {
-        const convMap = new Map<string, PrivateConversation>();
-        this.conversations.forEach(c => convMap.set(c.id, c));
-        serverConvs.forEach(sc => convMap.set(sc.id, sc));
-        this.conversations = Array.from(convMap.values());
-        setLocal(STORAGE_KEYS.CONVERSATIONS, this.conversations);
-      }
-
-      const serverPrivateMsgs = await fetchPrivateMessagesFromServer();
-      if (serverPrivateMsgs && serverPrivateMsgs.length > 0) {
-        const pmsgMap = new Map<string, PrivateMessage>();
-        this.privateMessages.forEach(pm => pmsgMap.set(pm.id, pm));
-        serverPrivateMsgs.forEach(spm => pmsgMap.set(spm.id, spm));
-        this.privateMessages = Array.from(pmsgMap.values());
-        setLocal(STORAGE_KEYS.PRIVATE_MSGS, this.privateMessages);
-      }
+      await this.syncPrivateMessages();
     } catch {
       // Fallback to local storage silently
     }

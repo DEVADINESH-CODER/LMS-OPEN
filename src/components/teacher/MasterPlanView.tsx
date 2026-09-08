@@ -41,7 +41,7 @@ export const MasterPlanView: React.FC<MasterPlanViewProps> = ({ onPublishPeriod 
   const publishedPeriodNumbers = new Set(classLessons.filter(l => l.status === 'published').map(l => l.periodNumber));
 
   const handleRevertPeriod = (periodNumber: number, topic: string) => {
-    if (window.confirm(`Unpublish Period ${periodNumber} ("${topic}") for Class ${activeClassId}?\n\nThis will revert the lesson to draft and remove it from students' Today view.`)) {
+    if (window.confirm(`Unpublish Period ${periodNumber} ("${topic}") for Class ${activeClassId}?\n\nThis will revert the lesson to draft and remove it from students' Latest Class view.`)) {
       storageService.unpublishLesson(activeClassId, periodNumber);
       setRefreshKey(prev => prev + 1);
     }

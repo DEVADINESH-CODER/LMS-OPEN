@@ -332,7 +332,7 @@ export const PublishLessonModal: React.FC<PublishLessonModalProps> = ({
               <span>Teacher Workflow</span>
             </div>
             <h2 className="text-xl font-extrabold tracking-tight">
-              Publish Today's Class
+              Publish Latest Class
             </h2>
           </div>
 
@@ -400,7 +400,7 @@ export const PublishLessonModal: React.FC<PublishLessonModalProps> = ({
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Today's Topic Title
+                Class Topic Title
               </label>
               <input
                 type="text"
@@ -485,7 +485,7 @@ export const PublishLessonModal: React.FC<PublishLessonModalProps> = ({
           <div className="space-y-3">
             <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               <Code className="w-4 h-4 text-sky-500" />
-              <span>Today's Core Python Code & Output</span>
+              <span>Core Python Code & Output</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

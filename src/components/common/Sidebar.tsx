@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
   const { activeClassId } = useClass();
 
   const studentNavItems = [
-    { id: 'today', label: "Today's Class", icon: Calendar, highlight: true },
+    { id: 'today', label: "Latest Class", icon: Calendar, highlight: true },
     { id: 'revision', label: "Revision & Notes", icon: BookOpen },
     { id: 'practice', label: "Practice Problems", icon: Code2 },
     { id: 'group-chat', label: `Class ${user?.role === 'student' ? user.student.classId : ''} Chat`, icon: MessageSquare },
@@ -43,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
 
   const teacherNavItems = [
     { id: 'dashboard', label: "Teacher Dashboard", icon: LayoutDashboard },
-    { id: 'publish', label: "Publish Today's Class", icon: Send, highlight: true },
+    { id: 'publish', label: "Publish Latest Class", icon: Send, highlight: true },
     { id: 'live-poll', label: "Live Classroom Poll", icon: BarChart3, highlight: true },
     { id: 'master-plan', label: "45-Period Master Plan", icon: Map },
     { id: 'students', label: "Students Management", icon: Users },

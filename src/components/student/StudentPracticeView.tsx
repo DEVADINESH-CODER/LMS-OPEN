@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { storageService } from '../../lib/storage-provider';
 import { PracticeQuestion } from '../../types';
 import { CodeRunner } from '../common/CodeRunner';
@@ -33,17 +33,24 @@ export const StudentPracticeView: React.FC<StudentPracticeViewProps> = ({ onOpen
   const [practiceMode, setPracticeMode] = useState<'gym' | 'adaptive'>('gym');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
-  const [expandedId, setExpandedId] = useState<string | null>('PQ-001');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [revealedHints, setRevealedHints] = useState<Record<string, boolean>>({});
   const [revealedSolutions, setRevealedSolutions] = useState<Record<string, boolean>>({});
   const [completedProblems, setCompletedProblems] = useState<Record<string, boolean>>({});
+  const [questions, setQuestions] = useState<PracticeQuestion[]>(() => storageService.getPracticeQuestions());
 
   // Adaptive lab state
   const [activeScenarioId, setActiveScenarioId] = useState<string>('AS-U1-01');
   const [revealedPredictions, setRevealedPredictions] = useState<Record<string, boolean>>({});
   const [adaptiveMastered, setAdaptiveMastered] = useState<Record<string, boolean>>({});
 
-  const allQuestions = storageService.getPracticeQuestions();
+  useEffect(() => {
+    storageService.syncPractice().then(() => {
+      setQuestions(storageService.getPracticeQuestions());
+    });
+  }, []);
+
+  const allQuestions = questions;
 
   const filteredQuestions = allQuestions.filter(q => {
     const matchDiff = selectedDifficulty === 'all' || q.difficulty === selectedDifficulty;
@@ -286,8 +293,27 @@ export const StudentPracticeView: React.FC<StudentPracticeViewProps> = ({ onOpen
         /* STANDARD GYM VIEW */
         <div className="space-y-4">
         {filteredQuestions.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400 text-xs italic">
-            No practice problems matched your selected filter.
+          <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950 flex items-center justify-center mx-auto text-sky-600">
+              <Code2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              {allQuestions.length === 0 ? 'No Practice Questions Published Yet' : 'No Practice Problems Matched Filters'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              {allQuestions.length === 0 
+                ? 'Your instructor has not yet added custom problem sheets to the database. In the meantime, explore the 12 Real-World Scenarios in the Adaptive tab!'
+                : 'Try adjusting your difficulty or unit filters to view other practice problems.'}
+            </p>
+            {allQuestions.length === 0 && (
+              <button
+                onClick={() => setPracticeMode('adaptive')}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 hover:opacity-95"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Explore 12 Real-World Scenarios</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredQuestions.map((q) => {

@@ -17,6 +17,8 @@ import {
   GraduationCap
 } from 'lucide-react';
 
+import { subscribeToChannel } from '../../lib/appwrite';
+
 export const PrivateChatView: React.FC = () => {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<PrivateConversation[]>([]);
@@ -36,10 +38,11 @@ export const PrivateChatView: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations or direct student conversation
-  const loadData = () => {
+  const loadData = async () => {
     if (!user) return;
 
     try {
+      await storageService.syncPrivateMessages();
       if (user.role === 'teacher') {
         const list = storageService.getPrivateConversationsForTeacher();
         setConversations(list);
@@ -72,7 +75,19 @@ export const PrivateChatView: React.FC = () => {
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
+    
+    // Realtime subscription for private messages
+    const unsubscribe = subscribeToChannel(
+      'databases.python_class_lms.collections.private_messages.documents',
+      () => {
+        loadData();
+      }
+    );
+
+    return () => {
+      clearInterval(interval);
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [user, selectedConvId]);
 
   useEffect(() => {

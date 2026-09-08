@@ -47,7 +47,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigate, 
                        publishedLessons[publishedLessons.length - 1];
 
   const handleRevertLesson = (lessonId: string, periodNumber: number, topic: string) => {
-    if (window.confirm(`Are you sure you want to REVERT Period ${periodNumber} ("${topic}") to Draft?\n\nStudents in Class ${activeClassId} will no longer see this as today's active published lesson.`)) {
+    if (window.confirm(`Are you sure you want to REVERT Period ${periodNumber} ("${topic}") to Draft?\n\nStudents in Class ${activeClassId} will no longer see this as the active published lesson.`)) {
       storageService.revertLessonToDraft(lessonId);
       setActionNotice(`Period ${periodNumber} successfully reverted to Draft.`);
       setRefreshCount(prev => prev + 1);
@@ -149,13 +149,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigate, 
       {/* Main Action Hub */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
-        {/* Card 1: Publish Today's Class */}
+        {/* Card 1: Publish Latest Class */}
         <div className="p-6 rounded-3xl bg-gradient-to-br from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/20 flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-4">
               <Send className="w-5 h-5 text-white" />
             </div>
-            <h3 className="font-extrabold text-lg">Publish Today's Class</h3>
+            <h3 className="font-extrabold text-lg">Publish Latest Class</h3>
             <p className="text-xs text-sky-100 mt-1 leading-relaxed">
               Load topic from 45-period master plan, configure code & pedagogical steps, and publish directly to Class {activeClassId}.
             </p>
@@ -304,7 +304,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onNavigate, 
               onClick={onOpenPublish}
               className="mt-2 px-4 py-2 rounded-xl bg-sky-600 text-white font-bold text-xs"
             >
-              Publish Today's Lesson
+              Publish Latest Lesson
             </button>
           </div>
         )}
