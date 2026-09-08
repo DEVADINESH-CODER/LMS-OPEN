@@ -52,9 +52,10 @@ export const LivePollStudio: React.FC = () => {
     }
   };
 
+  // Periodic network sync + WebSocket
   useEffect(() => {
     refreshPoll();
-    const interval = setInterval(refreshPoll, 2000);
+    const interval = setInterval(refreshPoll, 2500);
 
     const unsubscribe = subscribeToChannel(
       'databases.python_class_lms.collections.live_poll.documents',
@@ -69,12 +70,26 @@ export const LivePollStudio: React.FC = () => {
     };
   }, []);
 
-  const handleLaunchPoll = (e: React.FormEvent) => {
+  // Smooth local 1-second timer tick
+  useEffect(() => {
+    if (!activePoll) return;
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((new Date(activePoll.expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        setActivePoll(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activePoll]);
+
+  const handleLaunchPoll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim()) return;
 
     try {
-      const poll = storageService.createLivePoll(
+      const poll = await storageService.createLivePoll(
         question.trim(),
         targetClass,
         ['Yes', 'No'],
@@ -88,16 +103,16 @@ export const LivePollStudio: React.FC = () => {
     }
   };
 
-  const handleEndPoll = () => {
+  const handleEndPoll = async () => {
     if (confirm('End this live poll now? Students will no longer be able to submit votes.')) {
-      storageService.endLivePoll();
+      await storageService.endLivePoll();
       setActivePoll(null);
       refreshPoll();
     }
   };
 
   // Compute live vote statistics
-  const votes = activePoll ? Object.values(activePoll.votes) : [];
+  const votes = activePoll ? Object.values(activePoll.votes || {}) : [];
   const totalVotes = votes.length;
   const yesVotes = votes.filter(v => v.choice === 'Yes').length;
   const noVotes = votes.filter(v => v.choice === 'No').length;

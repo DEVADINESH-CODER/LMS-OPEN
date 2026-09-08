@@ -587,9 +587,9 @@ describe('Python Class LMS - Core Security & Functionality Tests', () => {
   });
 
   describe('15. Live In-Class Classroom Poll Lifecycle (5-Minute Hold & Auto-Cleanup)', () => {
-    it('should launch a 5-minute live poll, accept Yes/No votes, and compute percentages', () => {
+    it('should launch a 5-minute live poll, accept Yes/No votes, and compute percentages', async () => {
       // 1. Create live poll for C1-112
-      const poll = storageService.createLivePoll(
+      const poll = await storageService.createLivePoll(
         'Did you complete the while loop task?',
         'C1-112',
         ['Yes', 'No'],
@@ -611,10 +611,10 @@ describe('Python Class LMS - Core Security & Functionality Tests', () => {
       expect(activeForC2).toBeNull();
 
       // 2. Student 1 votes YES
-      storageService.submitPollVote(poll.id, 'STU-C1-001', 'AJAY KRISHNAN S', 'Yes', '26009479', 'C1-112');
+      await storageService.submitPollVote(poll.id, 'STU-C1-001', 'AJAY KRISHNAN S', 'Yes', '26009479', 'C1-112');
 
       // 3. Student 2 votes NO
-      storageService.submitPollVote(poll.id, 'STU-C1-002', 'ANANDHA VEL R', 'No', '26009587', 'C1-112');
+      await storageService.submitPollVote(poll.id, 'STU-C1-002', 'ANANDHA VEL R', 'No', '26009587', 'C1-112');
 
       const updatedPoll = storageService.getLivePoll('C1-112');
       expect(updatedPoll).not.toBeNull();
@@ -624,22 +624,22 @@ describe('Python Class LMS - Core Security & Functionality Tests', () => {
       expect(votes.filter(v => v.choice === 'No').length).toBe(1);
 
       // 4. End poll early
-      storageService.endLivePoll(poll.id);
+      await storageService.endLivePoll(poll.id);
       expect(storageService.getLivePoll('C1-112')).toBeNull();
     });
 
-    it('should reject invalid vote choices', () => {
-      const poll = storageService.createLivePoll(
+    it('should reject invalid vote choices', async () => {
+      const poll = await storageService.createLivePoll(
         'Are you ready?',
         'all',
         ['Yes', 'No']
       );
 
-      expect(() => {
-        storageService.submitPollVote(poll.id, 'STU-001', 'Test', 'Maybe');
-      }).toThrow('Invalid poll option');
+      await expect(async () => {
+        await storageService.submitPollVote(poll.id, 'STU-001', 'Test', 'Maybe');
+      }).rejects.toThrow('Invalid poll option');
 
-      storageService.endLivePoll(poll.id);
+      await storageService.endLivePoll(poll.id);
     });
   });
 

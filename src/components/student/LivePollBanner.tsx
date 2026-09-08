@@ -44,9 +44,10 @@ export const LivePollBanner: React.FC = () => {
     }
   };
 
+  // Periodic network sync + WebSocket
   useEffect(() => {
     syncPoll();
-    const interval = setInterval(syncPoll, 2000);
+    const interval = setInterval(syncPoll, 2500);
 
     const unsubscribe = subscribeToChannel(
       'databases.python_class_lms.collections.live_poll.documents',
@@ -61,12 +62,26 @@ export const LivePollBanner: React.FC = () => {
     };
   }, [user]);
 
+  // Smooth local 1-second timer tick
+  useEffect(() => {
+    if (!poll) return;
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((new Date(poll.expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        setPoll(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [poll]);
+
   if (!user || user.role !== 'student' || !poll || secondsRemaining <= 0) {
     return null;
   }
 
-  const myVote = poll.votes[user.student.id];
-  const votesList = Object.values(poll.votes);
+  const myVote = poll.votes?.[user.student.id];
+  const votesList = Object.values(poll.votes || {});
   const totalVotes = votesList.length;
   const yesVotes = votesList.filter(v => v.choice === 'Yes').length;
   const noVotes = votesList.filter(v => v.choice === 'No').length;
@@ -77,11 +92,11 @@ export const LivePollBanner: React.FC = () => {
   const seconds = secondsRemaining % 60;
   const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  const handleVote = (choice: 'Yes' | 'No') => {
+  const handleVote = async (choice: 'Yes' | 'No') => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const updated = storageService.submitPollVote(
+      const updated = await storageService.submitPollVote(
         poll.id,
         user.student.id,
         user.student.name,

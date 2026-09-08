@@ -55,6 +55,7 @@ import {
   deletePracticeQuestionFromServer,
   fetchLivePollFromServer,
   saveLivePollToServer,
+  submitPollVoteToServer,
   deleteLivePollFromServer
 } from './appwrite';
 
@@ -196,15 +197,25 @@ class StorageService {
   public async syncLivePoll(): Promise<void> {
     try {
       const serverPoll = await fetchLivePollFromServer();
-      if (serverPoll) {
+      if (serverPoll && serverPoll.isActive) {
         const now = Date.now();
         const exp = new Date(serverPoll.expiresAt).getTime();
-        if (now < exp && serverPoll.isActive) {
+        if (now < exp) {
           this.livePoll = serverPoll;
           setLocal(STORAGE_KEYS.LIVE_POLL, this.livePoll);
           return;
         }
       }
+      
+      // If server returned null or inactive, check if local poll is still valid
+      if (this.livePoll && this.livePoll.isActive) {
+        const now = Date.now();
+        const exp = new Date(this.livePoll.expiresAt).getTime();
+        if (now < exp) {
+          return;
+        }
+      }
+
       this.livePoll = null;
       setLocal(STORAGE_KEYS.LIVE_POLL, null);
     } catch {}
@@ -1207,12 +1218,12 @@ class StorageService {
 
   // --- LIVE CLASSROOM POLL (DYNAMIC 5-MINUTE AUTO-EXPIRING) ---
 
-  public createLivePoll(
+  public async createLivePoll(
     question: string, 
     targetClass: ClassId | 'all', 
     options: string[] = ['Yes', 'No'], 
     durationSeconds = 300
-  ): LivePoll {
+  ): Promise<LivePoll> {
     const cleanQuestion = question.trim();
     if (!cleanQuestion) throw new Error('Poll question cannot be empty.');
 
@@ -1235,7 +1246,7 @@ class StorageService {
     this.livePoll = newPoll;
     setLocal(STORAGE_KEYS.LIVE_POLL, newPoll);
     this.logAudit(INITIAL_TEACHER.id, 'teacher', 'POLL_LAUNCHED', `Launched 5-min live poll "${cleanQuestion}" for ${targetClass}`);
-    saveLivePollToServer(newPoll).catch(() => {});
+    await saveLivePollToServer(newPoll);
     return newPoll;
   }
 
@@ -1263,14 +1274,14 @@ class StorageService {
     return stored;
   }
 
-  public submitPollVote(
+  public async submitPollVote(
     pollId: string, 
     studentId: string, 
     studentName: string, 
     choice: string,
     studentRegNo?: string,
     classId?: ClassId
-  ): LivePoll {
+  ): Promise<LivePoll> {
     const poll = this.getLivePoll(classId);
     if (!poll || poll.id !== pollId) {
       throw new Error('This live poll is no longer active or has expired.');
@@ -1289,22 +1300,32 @@ class StorageService {
       timestamp: new Date().toISOString()
     };
 
+    // Optimistic local update
     poll.votes[studentId] = vote;
     this.livePoll = poll;
     setLocal(STORAGE_KEYS.LIVE_POLL, poll);
-    saveLivePollToServer(poll).catch(() => {});
+
+    try {
+      const serverUpdated = await submitPollVoteToServer(pollId, vote);
+      if (serverUpdated && serverUpdated.id === pollId) {
+        this.livePoll = serverUpdated;
+        setLocal(STORAGE_KEYS.LIVE_POLL, serverUpdated);
+        return serverUpdated;
+      }
+    } catch (e) {
+      console.warn('Failed to submit vote to server:', e);
+    }
     return poll;
   }
 
-  public endLivePoll(pollId?: string): void {
+  public async endLivePoll(pollId?: string): Promise<void> {
     const poll = getLocal<LivePoll | null>(STORAGE_KEYS.LIVE_POLL, this.livePoll);
+    this.livePoll = null;
+    setLocal(STORAGE_KEYS.LIVE_POLL, null);
     if (poll) {
       poll.isActive = false;
-      this.livePoll = null;
-      setLocal(STORAGE_KEYS.LIVE_POLL, null);
       this.logAudit(INITIAL_TEACHER.id, 'teacher', 'POLL_ENDED', `Closed live poll "${poll.question}"`);
-      saveLivePollToServer({ ...poll, isActive: false }).catch(() => {});
-      deleteLivePollFromServer().catch(() => {});
+      await deleteLivePollFromServer();
     }
   }
 

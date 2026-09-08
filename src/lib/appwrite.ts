@@ -480,7 +480,13 @@ export async function fetchLivePollFromServer(): Promise<any | null> {
     const doc = await databases.getDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll');
     if (doc && doc.pollData) {
       const parsed = JSON.parse(doc.pollData);
-      return parsed;
+      if (parsed && parsed.isActive) {
+        const exp = new Date(parsed.expiresAt).getTime();
+        if (Date.now() < exp) {
+          return parsed;
+        }
+      }
+      return null;
     }
     return null;
   } catch {
@@ -501,23 +507,71 @@ export async function saveLivePollToServer(poll: any): Promise<void> {
       expiresAt: poll.expiresAt || new Date().toISOString()
     };
     try {
-      await databases.createDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
+      await databases.updateDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
     } catch {
       try {
-        await databases.updateDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
-      } catch {}
+        await databases.createDocument(databaseId, COLLECTIONS.LIVE_POLL, docId, payload);
+      } catch (e2) {
+        console.warn('Could not save live poll:', e2);
+      }
     }
   } catch (e) {
     console.warn('Could not save live poll to Appwrite:', e);
   }
 }
 
+export async function submitPollVoteToServer(
+  pollId: string,
+  vote: { studentId: string; studentName: string; studentRegNo?: string; classId?: string; choice: string; timestamp: string }
+): Promise<any | null> {
+  if (!isAppwriteConfigured) return null;
+  try {
+    const doc = await databases.getDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll');
+    if (!doc || !doc.pollData) return null;
+    const poll = JSON.parse(doc.pollData);
+    if (!poll || poll.id !== pollId || !poll.isActive) return null;
+    
+    if (!poll.votes) poll.votes = {};
+    poll.votes[vote.studentId] = vote;
+    
+    const payload = {
+      pollId: poll.id,
+      targetClass: poll.targetClass || 'all',
+      question: (poll.question || '').slice(0, 500),
+      pollData: JSON.stringify(poll),
+      isActive: Boolean(poll.isActive),
+      expiresAt: poll.expiresAt
+    };
+    
+    await databases.updateDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll', payload);
+    return poll;
+  } catch (err) {
+    console.warn('Error submitting vote to server:', err);
+    return null;
+  }
+}
+
 export async function deleteLivePollFromServer(): Promise<void> {
   if (!isAppwriteConfigured) return;
   try {
-    await databases.deleteDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll');
+    const payload = {
+      pollId: 'none',
+      targetClass: 'all',
+      question: '',
+      pollData: JSON.stringify({ id: 'none', isActive: false, votes: {} }),
+      isActive: false,
+      expiresAt: new Date(0).toISOString()
+    };
+    try {
+      await databases.updateDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll', payload);
+    } catch {
+      try {
+        await databases.createDocument(databaseId, COLLECTIONS.LIVE_POLL, 'active_poll', payload);
+      } catch {}
+    }
   } catch {}
 }
+
 
 
 
