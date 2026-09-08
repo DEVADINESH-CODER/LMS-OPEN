@@ -103,6 +103,7 @@ export async function saveStudentPinToServer(studentId: string, pinHash: string,
   if (!isAppwriteConfigured) return;
   try {
     await databases.updateDocument(databaseId, COLLECTIONS.STUDENTS, studentId, {
+      studentId,
       pinHash,
       salt,
       mustChangePin,
@@ -117,6 +118,7 @@ export async function updateStudentStatusOnServer(studentId: string, isActive: b
   if (!isAppwriteConfigured) return;
   try {
     await databases.updateDocument(databaseId, COLLECTIONS.STUDENTS, studentId, {
+      studentId,
       isActive,
       updatedAt: new Date().toISOString()
     });
