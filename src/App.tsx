@@ -225,6 +225,17 @@ const MainLayout: React.FC = () => {
         onClose={() => setShowTeacherPasswordModal(false)}
       />
 
+      <footer className="px-4 pb-4 text-center text-xs text-slate-500 dark:text-slate-400">
+        <a
+          href="https://araplhn.org/4/43a839207210c4c72c3d24fd3def5da5"
+          target="_blank"
+          rel="sponsored noopener noreferrer"
+          className="underline underline-offset-2 hover:text-sky-600 dark:hover:text-sky-400"
+        >
+          Sponsored resources
+        </a>
+      </footer>
+
     </div>
   );
 };
